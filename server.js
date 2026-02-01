@@ -15,36 +15,25 @@ const io = new Server(server, {
   }
 });
 
-const SHARED_KEY = process.env.SHARED_KEY;
-if (!SHARED_KEY) {
-  console.error('ERROR: SHARED_KEY environment variable is required');
-  process.exit(1);
-}
-
 const PORT = process.env.PORT || 3000;
 
 // Initialize SQLite database
 const db = new Database('messages.db');
 
-// Create messages table if not exists
+// Drop old table if exists and create new simplified table
 db.exec(`
-  CREATE TABLE IF NOT EXISTS messages (
+  DROP TABLE IF EXISTS messages;
+  CREATE TABLE messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    roomKey TEXT NOT NULL,
     name TEXT NOT NULL,
     content TEXT NOT NULL,
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
 
-// Create index on roomKey
-db.exec(`
-  CREATE INDEX IF NOT EXISTS idx_roomKey ON messages(roomKey)
-`);
-
 // Prepare statements
-const getMessagesStmt = db.prepare('SELECT * FROM messages WHERE roomKey = ? ORDER BY createdAt ASC');
-const insertMessageStmt = db.prepare('INSERT INTO messages (roomKey, name, content) VALUES (?, ?, ?)');
+const getMessagesStmt = db.prepare('SELECT * FROM messages ORDER BY createdAt ASC');
+const insertMessageStmt = db.prepare('INSERT INTO messages (name, content) VALUES (?, ?)');
 
 // Rate limiting (IP based)
 const limiter = rateLimit({
@@ -63,12 +52,6 @@ app.use(express.static('public'));
 app.use('/api', limiter);
 
 // Validation helpers
-function validateRoomKey(roomKey) {
-  if (!roomKey || typeof roomKey !== 'string') return false;
-  const trimmed = roomKey.trim();
-  return trimmed.length >= 1 && trimmed.length <= 100;
-}
-
 function validateName(name) {
   if (!name || typeof name !== 'string') return false;
   const trimmed = name.trim();
@@ -81,25 +64,13 @@ function validateMessage(content) {
   return trimmed.length > 0 && trimmed.length <= 500;
 }
 
-function verifyAccess(providedKey, roomKey) {
-  // SHARED_KEY + roomKey 검증
-  return providedKey === SHARED_KEY && validateRoomKey(roomKey);
-}
-
 // REST API
 app.get('/api/messages', (req, res) => {
   try {
-    const { roomKey, key } = req.query;
-    
-    if (!verifyAccess(key, roomKey)) {
-      return res.status(403).json({ error: 'Invalid key or room key' });
-    }
-
-    const messages = getMessagesStmt.all(roomKey);
+    const messages = getMessagesStmt.all();
     
     res.json(messages.map(msg => ({
       id: msg.id,
-      roomKey: msg.roomKey,
       name: msg.name,
       content: msg.content,
       createdAt: new Date(msg.createdAt).toISOString()
@@ -110,22 +81,9 @@ app.get('/api/messages', (req, res) => {
   }
 });
 
-// Socket.IO middleware
-io.use((socket, next) => {
-  const { roomKey, key } = socket.handshake.auth;
-  
-  if (!verifyAccess(key, roomKey)) {
-    return next(new Error('Invalid key or room key'));
-  }
-  
-  socket.roomKey = roomKey;
-  next();
-});
-
+// Socket.IO
 io.on('connection', (socket) => {
-  const roomKey = socket.roomKey;
-  socket.join(roomKey);
-  console.log(`Client connected to room: ${roomKey}`);
+  console.log('Client connected');
 
   socket.on('sendMessage', (data, callback) => {
     try {
@@ -136,22 +94,17 @@ io.on('connection', (socket) => {
         return;
       }
 
-      if (socket.roomKey !== roomKey) {
-        if (callback) callback({ error: 'Room key mismatch' });
-        return;
-      }
-
-      const result = insertMessageStmt.run(roomKey, name.trim(), message.trim());
+      const result = insertMessageStmt.run(name.trim(), message.trim());
       
       const messageData = {
         id: result.lastInsertRowid,
-        roomKey: roomKey,
         name: name.trim(),
         content: message.trim(),
         createdAt: new Date().toISOString()
       };
 
-      io.to(roomKey).emit('newMessage', messageData);
+      // Broadcast to all connected clients
+      io.emit('newMessage', messageData);
       
       if (callback) callback({ success: true });
     } catch (error) {
@@ -161,7 +114,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    console.log(`Client disconnected from room: ${roomKey}`);
+    console.log('Client disconnected');
   });
 });
 

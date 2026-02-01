@@ -6,22 +6,26 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background: #f5f5f5;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
     padding: 20px;
 }
 
 .container {
-    max-width: 600px;
+    max-width: 700px;
     margin: 0 auto;
     background: white;
-    padding: 30px;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    padding: 40px;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
 }
 
 h1 {
     margin-bottom: 30px;
     color: #333;
+    font-size: 28px;
+    font-weight: 600;
+    text-align: center;
 }
 
 .form-group {
@@ -38,37 +42,54 @@ label {
 input[type="text"],
 textarea {
     width: 100%;
-    padding: 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
+    padding: 14px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
     font-size: 16px;
     font-family: inherit;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+input[type="text"]:focus,
+textarea:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 textarea {
     resize: vertical;
+    min-height: 120px;
 }
 
 button {
     width: 100%;
-    padding: 12px;
-    background: #007bff;
+    padding: 14px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     border: none;
-    border-radius: 4px;
+    border-radius: 8px;
     font-size: 16px;
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
 button:hover {
-    background: #0056b3;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+button:active {
+    transform: translateY(0);
 }
 
 button:disabled {
     background: #ccc;
     cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
 }
 
 #status {
@@ -92,9 +113,14 @@ button:disabled {
 }
 
 .message-item {
-    padding: 15px;
-    border-bottom: 1px solid #eee;
+    padding: 20px;
+    border-bottom: 1px solid #f0f0f0;
     animation: slideIn 0.3s ease-out;
+    transition: background-color 0.3s;
+}
+
+.message-item:hover {
+    background-color: #fafafa;
 }
 
 .message-item:last-child {
@@ -104,24 +130,28 @@ button:disabled {
 .message-header {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 8px;
+    align-items: center;
+    margin-bottom: 12px;
     font-size: 14px;
 }
 
 .message-name {
     font-weight: 600;
-    color: #007bff;
+    color: #667eea;
+    font-size: 15px;
 }
 
 .message-time {
     color: #999;
+    font-size: 13px;
 }
 
 .message-text {
     color: #333;
-    line-height: 1.5;
+    line-height: 1.6;
     white-space: pre-wrap;
     word-break: break-word;
+    font-size: 15px;
 }
 
 @keyframes slideIn {
@@ -138,39 +168,38 @@ button:disabled {
 #messages {
     max-height: 70vh;
     overflow-y: auto;
+    border-radius: 8px;
+    background: #fafafa;
+    padding: 10px;
 }
 
 .header-controls {
-    margin-bottom: 20px;
+    margin-bottom: 25px;
 }
 
 .controls {
     display: flex;
     gap: 10px;
     margin-bottom: 20px;
-    flex-wrap: wrap;
-}
-
-.controls input {
-    flex: 1;
-    min-width: 200px;
+    justify-content: center;
 }
 
 .controls button {
     width: auto;
-    padding: 12px 20px;
+    padding: 10px 24px;
+    font-size: 14px;
 }
 
 .toggle-btn {
-    background: #28a745;
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
 }
 
 .toggle-btn.active {
-    background: #28a745;
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
 }
 
 .toggle-btn:not(.active) {
-    background: #6c757d;
+    background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
 }
 
 .char-count {
@@ -181,16 +210,20 @@ button:disabled {
 }
 
 .message-item.new-message {
-    background: #fff3cd;
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
     animation: highlight 1s ease-out;
+    border-radius: 8px;
+    margin: 5px 0;
 }
 
 @keyframes highlight {
     0% {
-        background: #fff3cd;
+        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+        transform: scale(1.02);
     }
     100% {
         background: white;
+        transform: scale(1);
     }
 }
 

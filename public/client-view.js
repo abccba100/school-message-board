@@ -1,19 +1,9 @@
 const messagesContainer = document.getElementById('messages');
-const roomKeyInput = document.getElementById('roomKeyInput');
-const sharedKeyInput = document.getElementById('sharedKeyInput');
-const joinBtn = document.getElementById('joinBtn');
 const autoScrollToggle = document.getElementById('autoScrollToggle');
 const status = document.getElementById('status');
 
 let socket = null;
-let currentRoomKey = null;
 let autoScroll = true;
-
-// Load saved roomKey
-const savedRoomKey = localStorage.getItem('viewRoomKey');
-if (savedRoomKey) {
-    roomKeyInput.value = savedRoomKey;
-}
 
 autoScrollToggle.addEventListener('click', () => {
     autoScroll = !autoScroll;
@@ -21,69 +11,33 @@ autoScrollToggle.addEventListener('click', () => {
     autoScrollToggle.classList.toggle('active', autoScroll);
 });
 
-joinBtn.addEventListener('click', () => {
-    const roomKey = roomKeyInput.value.trim();
-    const sharedKey = sharedKeyInput.value.trim();
-    if (roomKey && sharedKey) {
-        joinRoom(roomKey, sharedKey);
-    } else {
-        showStatus('룸 키와 공유 키를 모두 입력해주세요.', 'error');
-    }
+// Connect socket and load messages on page load
+socket = io();
+
+socket.on('connect', async () => {
+    showStatus('연결됨', 'success');
+    setTimeout(() => {
+        status.style.display = 'none';
+    }, 2000);
+    await loadInitialMessages();
 });
 
-roomKeyInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        joinBtn.click();
-    }
-});
-
-sharedKeyInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        joinBtn.click();
-    }
-});
-
-function joinRoom(roomKey, sharedKey) {
-    if (socket) {
-        socket.disconnect();
-    }
-
-    currentRoomKey = roomKey;
-    localStorage.setItem('viewRoomKey', roomKey);
+socket.on('connect_error', (error) => {
+    showStatus('연결 실패', 'error');
     messagesContainer.innerHTML = '';
-    showStatus('연결 중...', 'info');
+});
 
-    socket = io({
-        auth: { roomKey, key: sharedKey }
-    });
+socket.on('newMessage', (message) => {
+    addMessage(message, true);
+});
 
-    socket.on('connect', async () => {
-        showStatus('연결됨', 'success');
-        setTimeout(() => {
-            status.style.display = 'none';
-        }, 2000);
-        await loadInitialMessages(roomKey, sharedKey);
-    });
+socket.on('disconnect', () => {
+    showStatus('연결 끊김', 'error');
+});
 
-    socket.on('connect_error', (error) => {
-        showStatus('연결 실패: 잘못된 키 또는 룸 키', 'error');
-        messagesContainer.innerHTML = '';
-    });
-
-    socket.on('newMessage', (message) => {
-        if (message.roomKey === currentRoomKey) {
-            addMessage(message, true);
-        }
-    });
-
-    socket.on('disconnect', () => {
-        showStatus('연결 끊김', 'error');
-    });
-}
-
-async function loadInitialMessages(roomKey, sharedKey) {
+async function loadInitialMessages() {
     try {
-        const response = await fetch(`/api/messages?roomKey=${encodeURIComponent(roomKey)}&key=${encodeURIComponent(sharedKey)}`);
+        const response = await fetch('/api/messages');
         if (!response.ok) {
             throw new Error('Failed to load messages');
         }
