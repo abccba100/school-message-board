@@ -1,0 +1,16 @@
+{
+  "name": "realtime-message-board",
+  "version": "1.0.0",
+  "description": "Real-time message board with room key authentication",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.6.1",
+    "better-sqlite3": "^9.2.2",
+    "express-rate-limit": "^7.1.5",
+    "dotenv": "^16.3.1"
+  }
+}
