@@ -1,3 +1,47 @@
+// 다크모드 강제 해제
+(function() {
+    if (document.documentElement) {
+        document.documentElement.style.colorScheme = 'light only';
+        document.documentElement.style.setProperty('-webkit-color-scheme', 'light only', 'important');
+        document.documentElement.style.setProperty('color-scheme', 'light only', 'important');
+        document.documentElement.style.setProperty('background-color', '#667eea', 'important');
+        document.documentElement.style.setProperty('color', '#333333', 'important');
+    }
+    if (document.body) {
+        document.body.style.setProperty('background', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 'important');
+        document.body.style.setProperty('background-color', '#667eea', 'important');
+        document.body.style.setProperty('color', '#333333', 'important');
+    }
+    
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                if (document.documentElement) {
+                    document.documentElement.style.colorScheme = 'light only';
+                    document.documentElement.style.setProperty('-webkit-color-scheme', 'light only', 'important');
+                }
+            }
+        });
+    });
+    
+    if (document.documentElement) {
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['style', 'class']
+        });
+    }
+    
+    setInterval(function() {
+        if (document.documentElement) {
+            const computed = window.getComputedStyle(document.documentElement);
+            if (computed.colorScheme !== 'light only' && computed.colorScheme !== 'light') {
+                document.documentElement.style.colorScheme = 'light only';
+                document.documentElement.style.setProperty('-webkit-color-scheme', 'light only', 'important');
+            }
+        }
+    }, 100);
+})();
+
 const form = document.getElementById('messageForm');
 const messageInput = document.getElementById('message');
 const submitBtn = document.getElementById('submitBtn');

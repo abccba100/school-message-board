@@ -1,14 +1,29 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" style="color-scheme: light only; background-color: #667eea; color: #333333;">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light">
     <meta name="supported-color-schemes" content="light">
+    <meta name="theme-color" content="#667eea" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#667eea" media="(prefers-color-scheme: dark)">
     <title>메시지 보기</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        html {
+            color-scheme: light only !important;
+            background-color: #667eea !important;
+            color: #333333 !important;
+            -webkit-color-scheme: light only !important;
+        }
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            background-color: #667eea !important;
+            color: #333333 !important;
+        }
+    </style>
 </head>
-<body class="view-page">
+<body class="view-page" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); background-color: #667eea; color: #333333;">
     <div id="ballContainer"></div>
     <div id="status"></div>
     <script src="/socket.io/socket.io.js"></script>
