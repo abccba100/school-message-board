@@ -1,3 +1,29 @@
+// ============================================
+// 조절 가능한 파라미터 목록
+// ============================================
+// 색상 관련:
+//   - hue: 0~360 (HSL 색상의 색상각)
+//   - saturation: 40~60% (채도 범위)
+//   - lightness: 70~85% (명도 범위)
+//   - gradient offset: 30% 30% (그라디언트 중심 위치)
+//   - darkerColor offset: -8% (어두운 색상 명도 차이)
+//   - borderColor offset: -12% (테두리 색상 명도 차이)
+//
+// 움직임 관련:
+//   - damping: 0.995 (속도 감쇠 계수, 높을수록 덜 감쇠)
+//   - noiseSpeed: 0.01~0.03 (노이즈 속도 범위)
+//   - noiseForce: 0.002 (노이즈 힘의 크기)
+//   - minSpeed: 0.01 (최소 속도 임계값)
+//   - minSpeedForce: minSpeed * 0.5 (최소 속도일 때 부여하는 힘)
+//   - boundaryBounce: 0.8 (경계 충돌 시 반사 계수)
+//   - collisionDamping: 0.9 (충돌 시 속도 감쇠)
+//
+// 풍선 크기:
+//   - minRadius: 40 (최소 반지름)
+//   - maxRadius: 100 (최대 반지름)
+//   - sizeMultiplier: 3 (텍스트 길이에 따른 크기 배수)
+// ============================================
+
 const ballContainer = document.getElementById('ballContainer');
 const status = document.getElementById('status');
 
@@ -18,6 +44,17 @@ class Ball {
         this.vy = (Math.random() - 0.5) * 0.5;
         this.radius = Math.max(40, Math.min(100, content.length * 3 + 40));
         this.element = null;
+        
+        // Generate pastel color
+        this.hue = Math.random() * 360;
+        this.saturation = 40 + Math.random() * 20; // 40-60%
+        this.lightness = 70 + Math.random() * 15; // 70-85%
+        
+        // Noise parameters for continuous movement
+        this.noiseX = Math.random() * Math.PI * 2;
+        this.noiseY = Math.random() * Math.PI * 2;
+        this.noiseSpeed = 0.01 + Math.random() * 0.02; // 0.01-0.03
+        
         this.createElement();
     }
 
@@ -29,13 +66,44 @@ class Ball {
         this.element.style.height = (this.radius * 2) + 'px';
         this.element.style.left = (this.x - this.radius) + 'px';
         this.element.style.top = (this.y - this.radius) + 'px';
+        
+        // Apply pastel color with gradient
+        const baseColor = `hsl(${this.hue}, ${this.saturation}%, ${this.lightness}%)`;
+        const darkerColor = `hsl(${this.hue}, ${this.saturation}%, ${this.lightness - 8}%)`;
+        const borderColor = `hsl(${this.hue}, ${this.saturation}%, ${this.lightness - 12}%)`;
+        
+        this.element.style.background = `radial-gradient(circle at 30% 30%, ${baseColor}, ${darkerColor})`;
+        this.element.style.borderColor = borderColor;
+        
         ballContainer.appendChild(this.element);
     }
 
     update() {
-        // Apply damping
-        this.vx *= 0.99;
-        this.vy *= 0.99;
+        // Apply gentle damping (less aggressive)
+        this.vx *= 0.995;
+        this.vy *= 0.995;
+
+        // Add subtle noise for continuous movement
+        this.noiseX += this.noiseSpeed;
+        this.noiseY += this.noiseSpeed;
+        
+        // Generate smooth noise using sine waves
+        const noiseForceX = Math.sin(this.noiseX) * 0.002;
+        const noiseForceY = Math.cos(this.noiseY) * 0.002;
+        
+        this.vx += noiseForceX;
+        this.vy += noiseForceY;
+
+        // Minimum speed check - if too slow, add small random force
+        const minSpeed = 0.01;
+        const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        
+        if (currentSpeed < minSpeed) {
+            const angle = Math.random() * Math.PI * 2;
+            const force = minSpeed * 0.5;
+            this.vx += Math.cos(angle) * force;
+            this.vy += Math.sin(angle) * force;
+        }
 
         // Update position
         this.x += this.vx;
