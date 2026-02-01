@@ -6,17 +6,9 @@
     <title>메시지 보기</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
-    <div class="container">
-        <div class="header-controls">
-            <h1>메시지 목록</h1>
-            <div class="controls">
-                <button id="autoScrollToggle" class="toggle-btn active">자동 스크롤 ON</button>
-            </div>
-        </div>
-        <div id="messages"></div>
-        <div id="status"></div>
-    </div>
+<body class="view-page">
+    <div id="ballContainer"></div>
+    <div id="status"></div>
     <script src="/socket.io/socket.io.js"></script>
     <script src="client-view.js"></script>
 </body>

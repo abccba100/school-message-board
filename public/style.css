@@ -11,6 +11,11 @@ body {
     padding: 20px;
 }
 
+body.view-page {
+    padding: 0;
+    overflow: hidden;
+}
+
 .container {
     max-width: 700px;
     margin: 0 auto;
@@ -231,5 +236,52 @@ button:disabled {
     background: #d1ecf1;
     color: #0c5460;
     display: block;
+}
+
+/* View page - floating balls */
+#ballContainer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.message-ball {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    cursor: default;
+    word-wrap: break-word;
+    text-align: center;
+    font-size: 14px;
+    color: #333;
+    line-height: 1.4;
+    transition: box-shadow 0.2s;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+}
+
+.message-ball:hover {
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+}
+
+body.view-page #status {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10000;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 500;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 

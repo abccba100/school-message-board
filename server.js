@@ -25,7 +25,6 @@ db.exec(`
   DROP TABLE IF EXISTS messages;
   CREATE TABLE messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
     content TEXT NOT NULL,
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
   )
@@ -33,7 +32,7 @@ db.exec(`
 
 // Prepare statements
 const getMessagesStmt = db.prepare('SELECT * FROM messages ORDER BY createdAt ASC');
-const insertMessageStmt = db.prepare('INSERT INTO messages (name, content) VALUES (?, ?)');
+const insertMessageStmt = db.prepare('INSERT INTO messages (content) VALUES (?)');
 
 // Rate limiting (IP based)
 const limiter = rateLimit({
@@ -52,12 +51,6 @@ app.use(express.static('public'));
 app.use('/api', limiter);
 
 // Validation helpers
-function validateName(name) {
-  if (!name || typeof name !== 'string') return false;
-  const trimmed = name.trim();
-  return trimmed.length > 0 && trimmed.length <= 20;
-}
-
 function validateMessage(content) {
   if (!content || typeof content !== 'string') return false;
   const trimmed = content.trim();
@@ -71,7 +64,6 @@ app.get('/api/messages', (req, res) => {
     
     res.json(messages.map(msg => ({
       id: msg.id,
-      name: msg.name,
       content: msg.content,
       createdAt: new Date(msg.createdAt).toISOString()
     })));
@@ -87,19 +79,18 @@ io.on('connection', (socket) => {
 
   socket.on('sendMessage', (data, callback) => {
     try {
-      const { name, message } = data;
+      const { content } = data;
 
-      if (!validateName(name) || !validateMessage(message)) {
+      if (!validateMessage(content)) {
         if (callback) callback({ error: 'Invalid input' });
         return;
       }
 
-      const result = insertMessageStmt.run(name.trim(), message.trim());
+      const result = insertMessageStmt.run(content.trim());
       
       const messageData = {
         id: result.lastInsertRowid,
-        name: name.trim(),
-        content: message.trim(),
+        content: content.trim(),
         createdAt: new Date().toISOString()
       };
 

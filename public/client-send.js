@@ -1,13 +1,8 @@
 const form = document.getElementById('messageForm');
-const nameInput = document.getElementById('name');
 const messageInput = document.getElementById('message');
 const submitBtn = document.getElementById('submitBtn');
 const status = document.getElementById('status');
 const charCount = document.getElementById('charCount');
-
-// Load saved name from localStorage
-const savedName = localStorage.getItem('name');
-if (savedName) nameInput.value = savedName;
 
 // Character count
 messageInput.addEventListener('input', () => {
@@ -37,11 +32,10 @@ socket.on('error', (data) => {
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const name = nameInput.value.trim();
-    const message = messageInput.value.trim();
+    const content = messageInput.value.trim();
     
-    if (!name || !message) {
-        showStatus('이름과 메시지를 모두 입력해주세요.', 'error');
+    if (!content) {
+        showStatus('메시지를 입력해주세요.', 'error');
         return;
     }
     
@@ -53,10 +47,7 @@ form.addEventListener('submit', async (e) => {
     submitBtn.disabled = true;
     submitBtn.textContent = '전송 중...';
     
-    // Save name to localStorage
-    localStorage.setItem('name', name);
-    
-    socket.emit('sendMessage', { name, message }, (response) => {
+    socket.emit('sendMessage', { content }, (response) => {
         if (response && response.error) {
             showStatus(response.error, 'error');
             submitBtn.disabled = false;
