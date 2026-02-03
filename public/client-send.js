@@ -51,6 +51,15 @@ const charCount = document.getElementById('charCount');
 // Character count
 messageInput.addEventListener('input', () => {
     charCount.textContent = messageInput.value.length;
+    
+    // Give textarea a gentle "alive" motion while typing
+    messageInput.classList.add('typing-alive');
+    if (messageInput._typingTimer) {
+        clearTimeout(messageInput._typingTimer);
+    }
+    messageInput._typingTimer = setTimeout(() => {
+        messageInput.classList.remove('typing-alive');
+    }, 600);
 });
 
 let socket = null;

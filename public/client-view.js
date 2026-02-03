@@ -268,12 +268,25 @@ class Ball {
             this.vy *= 0.9;
             other.vx *= 0.9;
             other.vy *= 0.9;
+
+            // Soft squish animation on collision
+            this.squish();
+            other.squish();
         }
     }
 
     applyForce(fx, fy) {
         this.vx += fx;
         this.vy += fy;
+    }
+
+    squish() {
+        if (!this.element) return;
+        this.element.classList.remove('bump');
+        // Force reflow to restart animation
+        // eslint-disable-next-line no-unused-expressions
+        this.element.offsetWidth;
+        this.element.classList.add('bump');
     }
 
     remove() {
@@ -331,6 +344,16 @@ function addBall(message, isNew = false) {
                 existingBall.applyForce(fx, fy);
             }
         });
+
+        // Soft pop-in for the new message
+        if (ball.element) {
+            ball.element.classList.add('new-born');
+            setTimeout(() => {
+                if (ball.element) {
+                    ball.element.classList.remove('new-born');
+                }
+            }, 800);
+        }
     }
     
     balls.push(ball);
