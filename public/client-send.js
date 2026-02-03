@@ -4,12 +4,12 @@
         document.documentElement.style.colorScheme = 'light only';
         document.documentElement.style.setProperty('-webkit-color-scheme', 'light only', 'important');
         document.documentElement.style.setProperty('color-scheme', 'light only', 'important');
-        document.documentElement.style.setProperty('background-color', '#667eea', 'important');
+        document.documentElement.style.setProperty('background-color', '#ffe9f0', 'important');
         document.documentElement.style.setProperty('color', '#333333', 'important');
     }
     if (document.body) {
-        document.body.style.setProperty('background', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 'important');
-        document.body.style.setProperty('background-color', '#667eea', 'important');
+        document.body.style.setProperty('background', 'linear-gradient(135deg, #ffe9f0 0%, #fff4d9 40%, #e3f3ff 80%, #e5ddff 100%)', 'important');
+        document.body.style.setProperty('background-color', '#ffe9f0', 'important');
         document.body.style.setProperty('color', '#333333', 'important');
     }
     
@@ -30,16 +30,6 @@
             attributeFilter: ['style', 'class']
         });
     }
-    
-    setInterval(function() {
-        if (document.documentElement) {
-            const computed = window.getComputedStyle(document.documentElement);
-            if (computed.colorScheme !== 'light only' && computed.colorScheme !== 'light') {
-                document.documentElement.style.colorScheme = 'light only';
-                document.documentElement.style.setProperty('-webkit-color-scheme', 'light only', 'important');
-            }
-        }
-    }, 100);
 })();
 
 const form = document.getElementById('messageForm');
@@ -48,18 +38,38 @@ const submitBtn = document.getElementById('submitBtn');
 const status = document.getElementById('status');
 const charCount = document.getElementById('charCount');
 
+let rafId = 0;
+let lastNow = performance.now();
+let typingAliveUntil = 0;
+let statusHideAt = 0;
+
+function tick(now) {
+    const dt = Math.min(0.05, Math.max(0.001, (now - lastNow) / 1000));
+    lastNow = now;
+    void dt;
+
+    if (typingAliveUntil && now >= typingAliveUntil) {
+        typingAliveUntil = 0;
+        messageInput.classList.remove('typing-alive');
+    }
+
+    if (statusHideAt && now >= statusHideAt) {
+        statusHideAt = 0;
+        status.style.display = 'none';
+    }
+
+    rafId = requestAnimationFrame(tick);
+}
+
+rafId = requestAnimationFrame(tick);
+
 // Character count
 messageInput.addEventListener('input', () => {
     charCount.textContent = messageInput.value.length;
     
     // Give textarea a gentle "alive" motion while typing
     messageInput.classList.add('typing-alive');
-    if (messageInput._typingTimer) {
-        clearTimeout(messageInput._typingTimer);
-    }
-    messageInput._typingTimer = setTimeout(() => {
-        messageInput.classList.remove('typing-alive');
-    }, 600);
+    typingAliveUntil = performance.now() + 600;
 });
 
 let socket = null;
@@ -69,9 +79,7 @@ socket = io();
 
 socket.on('connect', () => {
     showStatus('연결됨', 'success');
-    setTimeout(() => {
-        status.style.display = 'none';
-    }, 2000);
+    statusHideAt = performance.now() + 2000;
 });
 
 socket.on('connect_error', (error) => {
@@ -109,9 +117,7 @@ form.addEventListener('submit', async (e) => {
             messageInput.value = '';
             charCount.textContent = '0';
             showStatus('전송 완료!', 'success');
-            setTimeout(() => {
-                status.style.display = 'none';
-            }, 2000);
+            statusHideAt = performance.now() + 2000;
             submitBtn.disabled = false;
             submitBtn.textContent = '전송';
         }

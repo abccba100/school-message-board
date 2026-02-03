@@ -30,12 +30,12 @@
         document.documentElement.style.colorScheme = 'light only';
         document.documentElement.style.setProperty('-webkit-color-scheme', 'light only', 'important');
         document.documentElement.style.setProperty('color-scheme', 'light only', 'important');
-        document.documentElement.style.setProperty('background-color', '#667eea', 'important');
+        document.documentElement.style.setProperty('background-color', '#ffd7e2', 'important');
         document.documentElement.style.setProperty('color', '#333333', 'important');
     }
     if (document.body) {
-        document.body.style.setProperty('background', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 'important');
-        document.body.style.setProperty('background-color', '#667eea', 'important');
+        document.body.style.setProperty('background', 'linear-gradient(135deg, #ffd7e2 0%, #ffe8c7 35%, #e0f2ff 75%, #e3dcff 100%)', 'important');
+        document.body.style.setProperty('background-color', '#ffd7e2', 'important');
         document.body.style.setProperty('color', '#333333', 'important');
     }
     
@@ -56,16 +56,6 @@
             attributeFilter: ['style', 'class']
         });
     }
-    
-    setInterval(function() {
-        if (document.documentElement) {
-            const computed = window.getComputedStyle(document.documentElement);
-            if (computed.colorScheme !== 'light only' && computed.colorScheme !== 'light') {
-                document.documentElement.style.colorScheme = 'light only';
-                document.documentElement.style.setProperty('-webkit-color-scheme', 'light only', 'important');
-            }
-        }
-    }, 100);
 })();
 
 const ballContainer = document.getElementById('ballContainer');
@@ -77,6 +67,22 @@ let animationId = null;
 let containerWidth = 0;
 let containerHeight = 0;
 
+const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// world tuning (말랑/따뜻/끈적)
+const WORLD = {
+    maxDt: 0.05,
+    noiseAmp: 28,          // px/s^2
+    noiseSpeed: 0.65,      // phase speed
+    dragPerSecond: 0.22,   // higher = more sticky
+    boundaryK: 34,         // boundary spring
+    boundaryD: 9.5,        // boundary damping
+    collideK: 48,          // collision spring
+    collideD: 8.5,         // collision damping
+    maxSpeed: 240,         // px/s
+};
+
 // Ball class
 class Ball {
     constructor(id, content, x, y) {
@@ -84,8 +90,8 @@ class Ball {
         this.content = content;
         this.x = x;
         this.y = y;
-        this.vx = (Math.random() - 0.5) * 0.5;
-        this.vy = (Math.random() - 0.5) * 0.5;
+        this.vx = (Math.random() - 0.5) * 40;
+        this.vy = (Math.random() - 0.5) * 40;
         this.radius = Math.max(40, Math.min(100, content.length * 3 + 40));
         this.element = null;
         
@@ -94,10 +100,23 @@ class Ball {
         this.saturation = 40 + Math.random() * 20; // 40-60%
         this.lightness = 70 + Math.random() * 15; // 70-85%
         
-        // Noise parameters for continuous movement
-        this.noiseX = Math.random() * Math.PI * 2;
-        this.noiseY = Math.random() * Math.PI * 2;
-        this.noiseSpeed = 0.01 + Math.random() * 0.02; // 0.01-0.03
+        // movement phase (continuous, but very soft)
+        this.phase = Math.random() * Math.PI * 2;
+        this.phase2 = Math.random() * Math.PI * 2;
+        this.phaseSpeed = 0.45 + Math.random() * 0.35;
+
+        // squash & stretch (slime)
+        this.sx = 1;
+        this.sy = 1;
+        this.svx = 0;
+        this.svy = 0;
+        this.squishX = 0;
+        this.squishY = 0;
+        this.rot = (Math.random() - 0.5) * 6;
+        this.rotV = (Math.random() - 0.5) * 18;
+
+        // born pop timing
+        this.bornAt = performance.now();
         
         this.createElement();
     }
@@ -108,8 +127,7 @@ class Ball {
         this.element.textContent = this.content;
         this.element.style.width = (this.radius * 2) + 'px';
         this.element.style.height = (this.radius * 2) + 'px';
-        this.element.style.left = (this.x - this.radius) + 'px';
-        this.element.style.top = (this.y - this.radius) + 'px';
+        this.element.style.willChange = 'transform';
         
         // Apply pastel color with gradient (RGB로 변환하여 다크모드 반전 방지)
         const baseColorRgb = this.hslToRgb(this.hue, this.saturation, this.lightness);
@@ -171,108 +189,154 @@ class Ball {
         };
     }
 
-    update() {
-        // Apply gentle damping (less aggressive)
-        this.vx *= 0.995;
-        this.vy *= 0.995;
+    update(dt, now) {
+        // sticky drag (frame-rate independent)
+        const drag = Math.exp(-WORLD.dragPerSecond * dt);
+        this.vx *= drag;
+        this.vy *= drag;
 
-        // Add subtle noise for continuous movement
-        this.noiseX += this.noiseSpeed;
-        this.noiseY += this.noiseSpeed;
-        
-        // Generate smooth noise using sine waves
-        const noiseForceX = Math.sin(this.noiseX) * 0.002;
-        const noiseForceY = Math.cos(this.noiseY) * 0.002;
-        
-        this.vx += noiseForceX;
-        this.vy += noiseForceY;
-
-        // Minimum speed check - if too slow, add small random force
-        const minSpeed = 0.01;
-        const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-        
-        if (currentSpeed < minSpeed) {
-            const angle = Math.random() * Math.PI * 2;
-            const force = minSpeed * 0.5;
-            this.vx += Math.cos(angle) * force;
-            this.vy += Math.sin(angle) * force;
+        // gentle procedural drift (continuous, low frequency)
+        if (!prefersReducedMotion) {
+            this.phase += this.phaseSpeed * dt * WORLD.noiseSpeed;
+            this.phase2 += (this.phaseSpeed * 0.83) * dt * WORLD.noiseSpeed;
+            const ax = (Math.sin(this.phase) + Math.sin(this.phase2 * 0.9)) * 0.5 * WORLD.noiseAmp;
+            const ay = (Math.cos(this.phase2) + Math.cos(this.phase * 0.85)) * 0.5 * WORLD.noiseAmp;
+            this.vx += ax * dt;
+            this.vy += ay * dt;
         }
 
-        // Update position
-        this.x += this.vx;
-        this.y += this.vy;
-
-        // Boundary collision
-        if (this.x - this.radius < 0) {
-            this.x = this.radius;
-            this.vx = -this.vx * 0.8;
-        }
-        if (this.x + this.radius > containerWidth) {
-            this.x = containerWidth - this.radius;
-            this.vx = -this.vx * 0.8;
-        }
-        if (this.y - this.radius < 0) {
-            this.y = this.radius;
-            this.vy = -this.vy * 0.8;
-        }
-        if (this.y + this.radius > containerHeight) {
-            this.y = containerHeight - this.radius;
-            this.vy = -this.vy * 0.8;
+        // clamp max speed (avoid spikes)
+        const sp = Math.hypot(this.vx, this.vy);
+        if (sp > WORLD.maxSpeed) {
+            const k = WORLD.maxSpeed / (sp || 1);
+            this.vx *= k;
+            this.vy *= k;
         }
 
-        // Update DOM position
-        this.element.style.left = (this.x - this.radius) + 'px';
-        this.element.style.top = (this.y - this.radius) + 'px';
+        // integrate
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+
+        // soft boundary (spring, not bounce)
+        this.applyBoundary(dt);
+
+        // subtle breathing (cheap, 1D)
+        const t = now * 0.001;
+        const breath = prefersReducedMotion ? 0 : (Math.sin(t * 0.9 + this.phase2) * 0.02);
+        const targetSx = 1 + breath;
+        const targetSy = 1 - breath;
+
+        // squish targets blend
+        const sxTarget = targetSx + this.squishX;
+        const syTarget = targetSy + this.squishY;
+
+        // springy scale back (slime)
+        const sk = 28;
+        const sd = 9;
+        this.svx += (sxTarget - this.sx) * sk * dt;
+        this.svx *= Math.exp(-sd * dt);
+        this.sx += this.svx * dt;
+
+        this.svy += (syTarget - this.sy) * sk * dt;
+        this.svy *= Math.exp(-sd * dt);
+        this.sy += this.svy * dt;
+
+        // decay squish
+        this.squishX *= Math.exp(-7.5 * dt);
+        this.squishY *= Math.exp(-7.5 * dt);
+
+        // tiny rotation drift
+        this.rotV *= Math.exp(-2.2 * dt);
+        this.rot += this.rotV * dt;
+        this.rot = clamp(this.rot, -10, 10);
+
+        // update DOM (transform only)
+        if (this.element) {
+            const tx = (this.x - this.radius);
+            const ty = (this.y - this.radius);
+            this.element.style.transform = `translate3d(${tx}px, ${ty}px, 0) rotate(${this.rot}deg) scale(${this.sx}, ${this.sy})`;
+        }
+    }
+
+    applyBoundary(dt) {
+        if (containerWidth <= 0 || containerHeight <= 0) return;
+
+        const left = this.radius;
+        const right = containerWidth - this.radius;
+        const top = this.radius;
+        const bottom = containerHeight - this.radius;
+
+        let fx = 0, fy = 0;
+        let dx = 0, dy = 0;
+
+        if (this.x < left) dx = (left - this.x);
+        else if (this.x > right) dx = (right - this.x);
+
+        if (this.y < top) dy = (top - this.y);
+        else if (this.y > bottom) dy = (bottom - this.y);
+
+        // spring towards inside
+        fx += dx * WORLD.boundaryK - this.vx * WORLD.boundaryD * (dx !== 0 ? 1 : 0);
+        fy += dy * WORLD.boundaryK - this.vy * WORLD.boundaryD * (dy !== 0 ? 1 : 0);
+
+        this.vx += fx * dt;
+        this.vy += fy * dt;
+
+        // keep inside with a tiny margin
+        this.x = clamp(this.x, left - 0.25, right + 0.25);
+        this.y = clamp(this.y, top - 0.25, bottom + 0.25);
     }
 
     checkCollision(other) {
         const dx = other.x - this.x;
         const dy = other.y - this.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const minDistance = this.radius + other.radius;
+        const dist = Math.hypot(dx, dy);
+        const minDist = this.radius + other.radius;
 
-        if (distance < minDistance && distance > 0) {
-            // Collision detected
-            const angle = Math.atan2(dy, dx);
-            const sin = Math.sin(angle);
-            const cos = Math.cos(angle);
+        if (dist <= 0 || dist >= minDist) return;
 
-            // Rotate velocities
-            const vx1 = this.vx * cos + this.vy * sin;
-            const vy1 = this.vy * cos - this.vx * sin;
-            const vx2 = other.vx * cos + other.vy * sin;
-            const vy2 = other.vy * cos - other.vx * sin;
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const penetration = (minDist - dist);
 
-            // Separate balls
-            const overlap = minDistance - distance;
-            const separationX = (dx / distance) * overlap * 0.5;
-            const separationY = (dy / distance) * overlap * 0.5;
-            
-            this.x -= separationX;
-            this.y -= separationY;
-            other.x += separationX;
-            other.y += separationY;
+        // positional correction (soft)
+        const push = penetration * 0.52;
+        this.x -= nx * push;
+        this.y -= ny * push;
+        other.x += nx * push;
+        other.y += ny * push;
 
-            // Simple collision response (swap velocities in rotated space)
-            const finalVx1 = vx2;
-            const finalVx2 = vx1;
+        // relative velocity along normal
+        const rvx = other.vx - this.vx;
+        const rvy = other.vy - this.vy;
+        const relN = rvx * nx + rvy * ny;
 
-            // Rotate back
-            this.vx = finalVx1 * cos - vy1 * sin;
-            this.vy = vy1 * cos + finalVx1 * sin;
-            other.vx = finalVx2 * cos - vy2 * sin;
-            other.vy = vy2 * cos + finalVx2 * sin;
+        // spring-damper impulse (no hard bounce)
+        const k = WORLD.collideK;
+        const d = WORLD.collideD;
+        const impulse = (penetration * k - relN * d);
 
-            // Apply damping
-            this.vx *= 0.9;
-            this.vy *= 0.9;
-            other.vx *= 0.9;
-            other.vy *= 0.9;
+        const jx = nx * impulse;
+        const jy = ny * impulse;
 
-            // Soft squish animation on collision
-            this.squish();
-            other.squish();
-        }
+        this.vx -= jx;
+        this.vy -= jy;
+        other.vx += jx;
+        other.vy += jy;
+
+        // squish oriented to contact direction (slime)
+        const s = clamp(penetration / (Math.min(this.radius, other.radius) * 0.9), 0, 0.35);
+
+        // compress along normal, expand along tangent
+        this.squishX += (-nx * nx + 0.5) * s * 0.55;
+        this.squishY += (-ny * ny + 0.5) * s * 0.55;
+        other.squishX += (-nx * nx + 0.5) * s * 0.55;
+        other.squishY += (-ny * ny + 0.5) * s * 0.55;
+
+        // tiny rotation kick (gooey)
+        const twist = (rvx * -ny + rvy * nx);
+        this.rotV += clamp(twist * 0.015, -28, 28);
+        other.rotV -= clamp(twist * 0.015, -28, 28);
     }
 
     applyForce(fx, fy) {
@@ -280,14 +344,7 @@ class Ball {
         this.vy += fy;
     }
 
-    squish() {
-        if (!this.element) return;
-        this.element.classList.remove('bump');
-        // Force reflow to restart animation
-        // eslint-disable-next-line no-unused-expressions
-        this.element.offsetWidth;
-        this.element.classList.add('bump');
-    }
+    squish() {}
 
     remove() {
         if (this.element && this.element.parentNode) {
@@ -305,15 +362,28 @@ function updateContainerSize() {
 }
 
 // Animation loop
-function animate() {
-    // Update all balls
-    balls.forEach(ball => ball.update());
+let lastNow = performance.now();
+let statusHideAt = 0;
 
-    // Check collisions between all pairs
+function animate(now) {
+    const dt = clamp((now - lastNow) / 1000, 0.001, WORLD.maxDt);
+    lastNow = now;
+
+    // update all balls
+    for (let i = 0; i < balls.length; i++) {
+        balls[i].update(dt, now);
+    }
+
+    // collisions (O(n^2), but n is small in this use-case)
     for (let i = 0; i < balls.length; i++) {
         for (let j = i + 1; j < balls.length; j++) {
             balls[i].checkCollision(balls[j]);
         }
+    }
+
+    if (statusHideAt && now >= statusHideAt) {
+        statusHideAt = 0;
+        status.style.display = 'none';
     }
 
     animationId = requestAnimationFrame(animate);
@@ -328,8 +398,8 @@ function addBall(message, isNew = false) {
     
     if (isNew) {
         // Give initial random velocity
-        ball.vx = (Math.random() - 0.5) * 2;
-        ball.vy = (Math.random() - 0.5) * 2;
+        ball.vx = (Math.random() - 0.5) * 180;
+        ball.vy = (Math.random() - 0.5) * 180;
         
         // Push away existing balls
         balls.forEach(existingBall => {
@@ -338,22 +408,12 @@ function addBall(message, isNew = false) {
             const distance = Math.sqrt(dx * dx + dy * dy);
             
             if (distance < 200 && distance > 0) {
-                const force = 0.3 / (distance / 100);
+                const force = 140 / Math.max(60, distance);
                 const fx = (dx / distance) * force;
                 const fy = (dy / distance) * force;
                 existingBall.applyForce(fx, fy);
             }
         });
-
-        // Soft pop-in for the new message
-        if (ball.element) {
-            ball.element.classList.add('new-born');
-            setTimeout(() => {
-                if (ball.element) {
-                    ball.element.classList.remove('new-born');
-                }
-            }, 800);
-        }
     }
     
     balls.push(ball);
@@ -370,12 +430,11 @@ socket = io();
 
 socket.on('connect', async () => {
     showStatus('연결됨', 'success');
-    setTimeout(() => {
-        status.style.display = 'none';
-    }, 2000);
+    statusHideAt = performance.now() + 2000;
     await loadInitialMessages();
     if (animationId === null) {
-        animate();
+        lastNow = performance.now();
+        animate(lastNow);
     }
 });
 

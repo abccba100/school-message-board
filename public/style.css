@@ -406,14 +406,11 @@ button:disabled {
     width: 100vw;
     height: 100vh;
     overflow: hidden;
-    background:
-        radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.9) 0, rgba(255, 255, 255, 0) 55%),
-        radial-gradient(circle at 100% 100%, rgba(255, 255, 255, 0.9) 0, rgba(255, 255, 255, 0) 55%),
-        radial-gradient(circle at 70% 10%, rgba(255, 255, 255, 0.65) 0, rgba(255, 255, 255, 0) 55%),
-        linear-gradient(135deg, #ffd7e2 0%, #ffe8c7 35%, #e0f2ff 75%, #e3dcff 100%) !important;
-    background-color: #ffd7e2 !important;
+    background: transparent !important;
+    background-color: transparent !important;
     border-color: transparent !important;
     position: relative;
+    z-index: 1;
 }
 
 .message-ball {
@@ -433,8 +430,7 @@ button:disabled {
     color: #3f365f !important;
     line-height: 1.4;
     transition:
-        box-shadow 0.3s ease,
-        transform 0.3s cubic-bezier(0.17, 0.89, 0.32, 1.28);
+        box-shadow 0.22s ease;
     border: 2px solid rgba(155, 137, 255, 0.7) !important;
     background-color: #ffffff !important;
     -webkit-color-scheme: light only !important;
@@ -445,31 +441,23 @@ button:disabled {
     filter: none !important;
     backdrop-filter: blur(6px) saturate(1.2) !important;
     transform-origin: center;
-    animation:
-        bubbleBreath 5.5s ease-in-out infinite alternate,
-        bubbleTilt 7s ease-in-out infinite alternate;
+    will-change: transform;
+    animation: bubbleTilt 7s ease-in-out infinite alternate;
 }
 
 .message-ball:hover {
     box-shadow:
         0 18px 40px rgba(170, 151, 255, 0.8),
         0 0 0 1px rgba(255, 255, 255, 0.95) inset !important;
-    transform: scale(1.06);
     z-index: 1000;
 }
 
 .message-ball.new-born {
-    animation:
-        bubblePopIn 0.72s cubic-bezier(0.18, 0.89, 0.32, 1.4),
-        bubbleBreath 5.5s ease-in-out infinite alternate,
-        bubbleTilt 7s ease-in-out infinite alternate;
+    animation: bubbleTilt 7s ease-in-out infinite alternate;
 }
 
 .message-ball.bump {
-    animation:
-        bubbleBump 0.35s cubic-bezier(0.25, 0.9, 0.35, 1.4),
-        bubbleBreath 5.5s ease-in-out infinite alternate,
-        bubbleTilt 7s ease-in-out infinite alternate;
+    animation: bubbleTilt 7s ease-in-out infinite alternate;
 }
 
 body.view-page #status {
@@ -488,18 +476,6 @@ body.view-page #status {
 }
 
 /* Soft breathing + wobble for bubbles */
-@keyframes bubbleBreath {
-    0% {
-        transform: translate3d(0, 0, 0) scale(1);
-    }
-    50% {
-        transform: translate3d(0, -4px, 0) scale(1.03);
-    }
-    100% {
-        transform: translate3d(0, 2px, 0) scale(0.99);
-    }
-}
-
 @keyframes bubbleTilt {
     0% {
         border-radius: 50% 50% 48% 52% / 52% 48% 50% 50%;
@@ -509,33 +485,6 @@ body.view-page #status {
     }
     100% {
         border-radius: 52% 48% 50% 50% / 48% 52% 50% 50%;
-    }
-}
-
-@keyframes bubblePopIn {
-    0% {
-        transform: scale(0.25);
-        opacity: 0;
-    }
-    60% {
-        transform: scale(1.12);
-        opacity: 1;
-    }
-    100% {
-        transform: scale(1);
-        opacity: 1;
-    }
-}
-
-@keyframes bubbleBump {
-    0% {
-        transform: scale(1);
-    }
-    40% {
-        transform: scale(1.08);
-    }
-    100% {
-        transform: scale(1);
     }
 }
 
@@ -771,12 +720,8 @@ body.view-page #status {
     }
     
     #ballContainer {
-        background:
-            radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.9) 0, rgba(255, 255, 255, 0) 55%),
-            radial-gradient(circle at 100% 100%, rgba(255, 255, 255, 0.9) 0, rgba(255, 255, 255, 0) 55%),
-            radial-gradient(circle at 70% 10%, rgba(255, 255, 255, 0.65) 0, rgba(255, 255, 255, 0) 55%),
-            linear-gradient(135deg, #ffd7e2 0%, #ffe8c7 35%, #e0f2ff 75%, #e3dcff 100%) !important;
-        background-color: #ffd7e2 !important;
+        background: transparent !important;
+        background-color: transparent !important;
         border-color: transparent !important;
     }
     
