@@ -69,18 +69,25 @@ let containerHeight = 0;
 
 const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
 
 // world tuning (말랑/따뜻/끈적)
 const WORLD = {
     maxDt: 0.05,
-    noiseAmp: 28,          // px/s^2
-    noiseSpeed: 0.65,      // phase speed
-    dragPerSecond: 0.22,   // higher = more sticky
-    boundaryK: 34,         // boundary spring
-    boundaryD: 9.5,        // boundary damping
-    collideK: 48,          // collision spring
-    collideD: 8.5,         // collision damping
-    maxSpeed: 240,         // px/s
+    noiseAmp: 22,             // px/s^2
+    noiseSpeed: 0.62,         // phase speed
+    dragPerSecond: 0.34,      // higher = more sticky
+    boundaryK: 46,            // boundary spring (젤리벽)
+    boundaryD: 14.5,          // boundary damping
+    boundaryFriction: 0.78,   // tangential damping on wall contact
+    boundaryZone: 26,         // soft zone thickness (px)
+    collideK: 62,             // collision spring
+    collideD: 15.0,           // collision damping
+    collideFriction: 0.88,    // tangential damping on contact
+    separateRate: 0.12,       // slow positional separation factor
+    maxSepCorrection: 1.25,   // max px per frame of positional correction
+    maxSpeed: 190,            // px/s
+    maxContactSquish: 0.34,   // clamp for squish magnitude
 };
 
 // Ball class
@@ -93,6 +100,7 @@ class Ball {
         this.vx = (Math.random() - 0.5) * 40;
         this.vy = (Math.random() - 0.5) * 40;
         this.radius = Math.max(40, Math.min(100, content.length * 3 + 40));
+        this.mass = clamp((this.radius / 55) ** 2, 0.75, 2.2);
         this.element = null;
         
         // Generate pastel color
@@ -114,6 +122,7 @@ class Ball {
         this.squishY = 0;
         this.rot = (Math.random() - 0.5) * 6;
         this.rotV = (Math.random() - 0.5) * 18;
+        this.pulseP = Math.random() * Math.PI * 2;
 
         // born pop timing
         this.bornAt = performance.now();
@@ -226,13 +235,20 @@ class Ball {
         const targetSx = 1 + breath;
         const targetSy = 1 - breath;
 
+        // micro pulse per ball (very subtle, different phase)
+        let pulse = 0;
+        if (!prefersReducedMotion) {
+            this.pulseP += dt * (0.6 + (this.phaseSpeed * 0.35));
+            pulse = Math.sin(this.pulseP) * 0.012;
+        }
+
         // squish targets blend
-        const sxTarget = targetSx + this.squishX;
-        const syTarget = targetSy + this.squishY;
+        const sxTarget = (targetSx + pulse) + this.squishX;
+        const syTarget = (targetSy - pulse) + this.squishY;
 
         // springy scale back (slime)
-        const sk = 28;
-        const sd = 9;
+        const sk = 26;
+        const sd = 11;
         this.svx += (sxTarget - this.sx) * sk * dt;
         this.svx *= Math.exp(-sd * dt);
         this.sx += this.svx * dt;
@@ -242,8 +258,8 @@ class Ball {
         this.sy += this.svy * dt;
 
         // decay squish
-        this.squishX *= Math.exp(-7.5 * dt);
-        this.squishY *= Math.exp(-7.5 * dt);
+        this.squishX *= Math.exp(-8.4 * dt);
+        this.squishY *= Math.exp(-8.4 * dt);
 
         // tiny rotation drift
         this.rotV *= Math.exp(-2.2 * dt);
@@ -266,25 +282,63 @@ class Ball {
         const top = this.radius;
         const bottom = containerHeight - this.radius;
 
-        let fx = 0, fy = 0;
+        const zone = WORLD.boundaryZone;
         let dx = 0, dy = 0;
+        let nx = 0, ny = 0;
 
-        if (this.x < left) dx = (left - this.x);
-        else if (this.x > right) dx = (right - this.x);
+        if (this.x < left + zone) {
+            dx = (left + zone) - this.x;
+            nx = 1;
+        } else if (this.x > right - zone) {
+            dx = this.x - (right - zone);
+            nx = -1;
+        }
 
-        if (this.y < top) dy = (top - this.y);
-        else if (this.y > bottom) dy = (bottom - this.y);
+        if (this.y < top + zone) {
+            dy = (top + zone) - this.y;
+            ny = 1;
+        } else if (this.y > bottom - zone) {
+            dy = this.y - (bottom - zone);
+            ny = -1;
+        }
 
-        // spring towards inside
-        fx += dx * WORLD.boundaryK - this.vx * WORLD.boundaryD * (dx !== 0 ? 1 : 0);
-        fy += dy * WORLD.boundaryK - this.vy * WORLD.boundaryD * (dy !== 0 ? 1 : 0);
+        if (dx > 0) {
+            const depth = dx;
+            const nSign = nx;
+            const vN = this.vx * nSign;
+            const fN = (depth * WORLD.boundaryK - vN * WORLD.boundaryD);
+            this.vx += (fN * nSign) * (dt / this.mass);
 
-        this.vx += fx * dt;
-        this.vy += fy * dt;
+            // wall tangential friction (y)
+            this.vy *= Math.exp(-WORLD.boundaryFriction * dt * clamp(depth / zone, 0, 1));
 
-        // keep inside with a tiny margin
-        this.x = clamp(this.x, left - 0.25, right + 0.25);
-        this.y = clamp(this.y, top - 0.25, bottom + 0.25);
+            // squash oriented to wall
+            const s = clamp((depth / zone) * 0.22, 0, WORLD.maxContactSquish);
+            this.squishX += (Math.abs(nSign) * -0.18) * s;
+            this.squishY += (0.12) * s;
+            this.rotV += clamp(this.vy * 0.015, -18, 18);
+        }
+
+        if (dy > 0) {
+            const depth = dy;
+            const nSign = ny;
+            const vN = this.vy * nSign;
+            const fN = (depth * WORLD.boundaryK - vN * WORLD.boundaryD);
+            this.vy += (fN * nSign) * (dt / this.mass);
+
+            // wall tangential friction (x)
+            this.vx *= Math.exp(-WORLD.boundaryFriction * dt * clamp(depth / zone, 0, 1));
+
+            // squash oriented to wall
+            const s = clamp((depth / zone) * 0.22, 0, WORLD.maxContactSquish);
+            this.squishY += (Math.abs(nSign) * -0.18) * s;
+            this.squishX += (0.12) * s;
+            this.rotV += clamp(this.vx * 0.015, -18, 18);
+        }
+
+        // keep inside with a tiny margin (avoid runaway)
+        this.x = clamp(this.x, left - 1.0, right + 1.0);
+        this.y = clamp(this.y, top - 1.0, bottom + 1.0);
     }
 
     checkCollision(other) {
@@ -299,44 +353,68 @@ class Ball {
         const ny = dy / dist;
         const penetration = (minDist - dist);
 
-        // positional correction (soft)
-        const push = penetration * 0.52;
-        this.x -= nx * push;
-        this.y -= ny * push;
-        other.x += nx * push;
-        other.y += ny * push;
-
         // relative velocity along normal
         const rvx = other.vx - this.vx;
         const rvy = other.vy - this.vy;
         const relN = rvx * nx + rvy * ny;
 
-        // spring-damper impulse (no hard bounce)
+        // slow positional separation (avoid one-frame big shove)
+        const corr = clamp(penetration * WORLD.separateRate, 0, WORLD.maxSepCorrection);
+        if (corr > 0) {
+            const invMassA = 1 / this.mass;
+            const invMassB = 1 / other.mass;
+            const invSum = invMassA + invMassB;
+            const aShare = invMassA / invSum;
+            const bShare = invMassB / invSum;
+            this.x -= nx * corr * aShare;
+            this.y -= ny * corr * aShare;
+            other.x += nx * corr * bShare;
+            other.y += ny * corr * bShare;
+        }
+
+        // spring-damper "force" integrated over dt (no hard bounce)
         const k = WORLD.collideK;
         const d = WORLD.collideD;
-        const impulse = (penetration * k - relN * d);
+        const forceN = (penetration * k - relN * d);
+        const ax = nx * forceN;
+        const ay = ny * forceN;
 
-        const jx = nx * impulse;
-        const jy = ny * impulse;
+        this.vx -= (ax * (1 / this.mass)) * (1 / 60);
+        this.vy -= (ay * (1 / this.mass)) * (1 / 60);
+        other.vx += (ax * (1 / other.mass)) * (1 / 60);
+        other.vy += (ay * (1 / other.mass)) * (1 / 60);
 
-        this.vx -= jx;
-        this.vy -= jy;
-        other.vx += jx;
-        other.vy += jy;
+        // tangential friction (sticky contact)
+        const tx = -ny;
+        const ty = nx;
+        const relT = rvx * tx + rvy * ty;
+        const fr = WORLD.collideFriction;
+        const tDamp = relT * fr;
+        const ftx = tx * tDamp;
+        const fty = ty * tDamp;
+        this.vx += (ftx * (1 / this.mass)) * (1 / 60);
+        this.vy += (fty * (1 / this.mass)) * (1 / 60);
+        other.vx -= (ftx * (1 / other.mass)) * (1 / 60);
+        other.vy -= (fty * (1 / other.mass)) * (1 / 60);
 
         // squish oriented to contact direction (slime)
-        const s = clamp(penetration / (Math.min(this.radius, other.radius) * 0.9), 0, 0.35);
+        const softness = Math.min(this.radius, other.radius) * 0.9;
+        const s = clamp(penetration / (softness || 1), 0, WORLD.maxContactSquish);
+        const nxx = nx * nx;
+        const nyy = ny * ny;
+        const sA = s * (other.mass / (this.mass + other.mass));
+        const sB = s * (this.mass / (this.mass + other.mass));
 
-        // compress along normal, expand along tangent
-        this.squishX += (-nx * nx + 0.5) * s * 0.55;
-        this.squishY += (-ny * ny + 0.5) * s * 0.55;
-        other.squishX += (-nx * nx + 0.5) * s * 0.55;
-        other.squishY += (-ny * ny + 0.5) * s * 0.55;
+        // compress along normal, expand along tangent (axis-oriented)
+        this.squishX += (0.16 - nxx) * sA * 0.72;
+        this.squishY += (0.16 - nyy) * sA * 0.72;
+        other.squishX += (0.16 - nxx) * sB * 0.72;
+        other.squishY += (0.16 - nyy) * sB * 0.72;
 
         // tiny rotation kick (gooey)
         const twist = (rvx * -ny + rvy * nx);
-        this.rotV += clamp(twist * 0.015, -28, 28);
-        other.rotV -= clamp(twist * 0.015, -28, 28);
+        this.rotV += clamp(twist * 0.012, -22, 22);
+        other.rotV -= clamp(twist * 0.012, -22, 22);
     }
 
     applyForce(fx, fy) {
@@ -364,10 +442,49 @@ function updateContainerSize() {
 // Animation loop
 let lastNow = performance.now();
 let statusHideAt = 0;
+let aliveStart = performance.now();
+let pointerX = 0;
+let pointerY = 0;
+let pointerActive = false;
+const bgCanvas = document.getElementById('bgCanvas');
+
+window.addEventListener('pointermove', (e) => {
+    pointerActive = true;
+    pointerX = (e.clientX / Math.max(1, window.innerWidth)) * 2 - 1;
+    pointerY = (e.clientY / Math.max(1, window.innerHeight)) * 2 - 1;
+}, { passive: true });
+
+window.addEventListener('pointerleave', () => {
+    pointerActive = false;
+}, { passive: true });
 
 function animate(now) {
     const dt = clamp((now - lastNow) / 1000, 0.001, WORLD.maxDt);
     lastNow = now;
+
+    // page alive (very subtle)
+    if (!prefersReducedMotion) {
+        const t = (now - aliveStart) * 0.001;
+        const ax = Math.sin(t * 0.33) * 10 + Math.sin(t * 0.17 + 1.2) * 6;
+        const ay = Math.cos(t * 0.29) * 8 + Math.sin(t * 0.14 + 2.1) * 5;
+        const px = pointerActive ? pointerX * 14 : 0;
+        const py = pointerActive ? pointerY * 12 : 0;
+
+        document.documentElement.style.setProperty('--alive-x', (ax + px).toFixed(2) + 'px');
+        document.documentElement.style.setProperty('--alive-y', (ay + py).toFixed(2) + 'px');
+        document.documentElement.style.setProperty('--alive-s', (1 + Math.sin(t * 0.22) * 0.006).toFixed(4));
+
+        if (bgCanvas) {
+            const bx = (ax * 0.35 + px * 0.5);
+            const by = (ay * 0.35 + py * 0.5);
+            bgCanvas.style.setProperty('--bgx', bx.toFixed(2) + 'px');
+            bgCanvas.style.setProperty('--bgy', by.toFixed(2) + 'px');
+        }
+    } else {
+        document.documentElement.style.setProperty('--alive-x', '0px');
+        document.documentElement.style.setProperty('--alive-y', '0px');
+        document.documentElement.style.setProperty('--alive-s', '1');
+    }
 
     // update all balls
     for (let i = 0; i < balls.length; i++) {
@@ -398,8 +515,8 @@ function addBall(message, isNew = false) {
     
     if (isNew) {
         // Give initial random velocity
-        ball.vx = (Math.random() - 0.5) * 180;
-        ball.vy = (Math.random() - 0.5) * 180;
+        ball.vx = (Math.random() - 0.5) * 110;
+        ball.vy = (Math.random() - 0.5) * 110;
         
         // Push away existing balls
         balls.forEach(existingBall => {
@@ -407,11 +524,13 @@ function addBall(message, isNew = false) {
             const dy = existingBall.y - centerY;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
-            if (distance < 200 && distance > 0) {
-                const force = 140 / Math.max(60, distance);
+            if (distance < 240 && distance > 0) {
+                const force = 52 / Math.max(90, distance);
                 const fx = (dx / distance) * force;
                 const fy = (dy / distance) * force;
                 existingBall.applyForce(fx, fy);
+                existingBall.squishX += clamp((dx / distance) * 0.06, -0.08, 0.08);
+                existingBall.squishY += clamp((dy / distance) * 0.06, -0.08, 0.08);
             }
         });
     }
