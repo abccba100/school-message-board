@@ -48,6 +48,123 @@ body::before {
     z-index: -1;
 }
 
+/* Page headline / purpose copy */
+.page-hero {
+    position: relative;
+    margin: 0 auto 18px;
+    text-align: center;
+    z-index: 2;
+}
+
+.page-hero .hero-kicker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: rgba(61, 55, 88, 0.88) !important;
+    background: rgba(255, 255, 255, 0.55) !important;
+    border: 1px solid rgba(255, 255, 255, 0.7) !important;
+    box-shadow: 0 10px 24px rgba(170, 151, 255, 0.18) !important;
+    backdrop-filter: blur(10px) saturate(1.2);
+}
+
+.page-hero .hero-title {
+    margin: 12px 0 6px;
+    font-size: 22px;
+    line-height: 1.25;
+    font-weight: 800;
+    color: #3d3758 !important;
+    letter-spacing: 0.02em;
+}
+
+.page-hero .hero-subtitle {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: rgba(139, 121, 159, 0.95) !important;
+}
+
+/* Decorative background orbs (subtle stage layer) */
+.bg-orbs {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: -1;
+    opacity: 1;
+}
+
+.bg-orbs .orb {
+    position: absolute;
+    border-radius: 999px;
+    filter: blur(0.2px);
+    transform: translate3d(0, 0, 0);
+    opacity: 0.08;
+    mix-blend-mode: screen;
+    background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 62%),
+        radial-gradient(circle at 70% 70%, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 65%),
+        radial-gradient(circle at 45% 40%, rgba(255, 164, 198, 0.22), rgba(255, 164, 198, 0) 60%);
+}
+
+.bg-orbs .orb.o1 {
+    width: 520px;
+    height: 520px;
+    left: -210px;
+    top: -180px;
+    opacity: 0.09;
+    animation: stageDrift 22s ease-in-out infinite alternate;
+}
+
+.bg-orbs .orb.o2 {
+    width: 420px;
+    height: 420px;
+    right: -180px;
+    top: 80px;
+    opacity: 0.07;
+    animation: stageDrift 28s ease-in-out infinite alternate;
+    animation-delay: -8s;
+}
+
+.bg-orbs .orb.o3 {
+    width: 560px;
+    height: 560px;
+    left: 10%;
+    bottom: -280px;
+    opacity: 0.06;
+    animation: stageDrift 34s ease-in-out infinite alternate;
+    animation-delay: -14s;
+}
+
+.bg-orbs .orb.o4 {
+    width: 360px;
+    height: 360px;
+    right: 10%;
+    bottom: -180px;
+    opacity: 0.065;
+    animation: stageDrift 26s ease-in-out infinite alternate;
+    animation-delay: -3s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bg-orbs .orb {
+        animation: none !important;
+        transform: none !important;
+    }
+}
+
+@keyframes stageDrift {
+    0% {
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+    100% {
+        transform: translate3d(18px, -14px, 0) scale(1.02);
+    }
+}
+
 body.view-page {
     padding: 0;
     overflow: hidden;
@@ -61,6 +178,53 @@ body.view-page {
 .bg-canvas {
     transform: translate3d(var(--bgx, 0px), var(--bgy, 0px), 0) scale(1.03);
     transition: transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* View page title overlay (should not block balls) */
+.view-hero {
+    position: fixed;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(720px, calc(100vw - 24px));
+    text-align: center;
+    z-index: 3;
+    pointer-events: none;
+}
+
+.view-hero .hero-kicker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: rgba(61, 55, 88, 0.9) !important;
+    background: rgba(255, 255, 255, 0.52) !important;
+    border: 1px solid rgba(255, 255, 255, 0.65) !important;
+    box-shadow: 0 12px 28px rgba(170, 151, 255, 0.18) !important;
+    backdrop-filter: blur(10px) saturate(1.25);
+}
+
+.view-hero .hero-title {
+    margin: 10px 0 4px;
+    font-size: 18px;
+    font-weight: 850;
+    letter-spacing: 0.02em;
+    color: rgba(61, 55, 88, 0.95) !important;
+}
+
+.view-hero .hero-subtitle {
+    margin: 0;
+    font-size: 12px;
+    color: rgba(139, 121, 159, 0.95) !important;
+}
+
+.view-hero {
+    opacity: 0.92;
 }
 
 .container {
