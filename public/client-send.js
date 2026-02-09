@@ -108,13 +108,18 @@ form.addEventListener('submit', async (e) => {
     submitBtn.disabled = true;
     submitBtn.textContent = '전송 중...';
     
+    // 🎉 대포 발사!
+    if (window.cannonEffect) {
+        window.cannonEffect.fire(content);
+    }
+    
     socket.emit('sendMessage', { content }, (response) => {
         if (response && response.error) {
             showStatus(response.error, 'error');
             submitBtn.disabled = false;
             submitBtn.textContent = '전송';
         } else {
-            messageInput.value = '';
+            messageInput.value = '';X``
             charCount.textContent = '0';
             showStatus('전송 완료!', 'success');
             statusHideAt = performance.now() + 2000;

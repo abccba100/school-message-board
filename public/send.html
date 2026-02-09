@@ -46,10 +46,20 @@
             mix-blend-mode: screen;
             opacity: 0.9;
         }
+
+        .effect-canvas {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9999;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body style="background: linear-gradient(135deg, #ffe9f0 0%, #fff4d9 40%, #e3f3ff 80%, #e5ddff 100%); background-color: #ffe9f0; color: #333333;">
     <canvas id="bgCanvas" class="bg-canvas" aria-hidden="true"></canvas>
+    <canvas id="effectCanvas" class="effect-canvas" aria-hidden="true"></canvas>
     <div class="bg-vignette" aria-hidden="true"></div>
     <div class="bg-orbs" aria-hidden="true">
         <span class="orb o1"></span>
@@ -76,6 +86,7 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="client-send.js"></script>
     <script>
+        // Background animation
         (() => {
             const canvas = document.getElementById('bgCanvas');
             if (!canvas) return;
@@ -173,6 +184,315 @@
             resize();
             window.addEventListener('resize', resize, { passive: true });
             rafId = requestAnimationFrame(draw);
+        })();
+
+        // Cannon Effect Animation
+        (() => {
+            const canvas = document.getElementById('effectCanvas');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d', { alpha: true });
+            if (!ctx) return;
+
+            const DPR = Math.min(2, window.devicePixelRatio || 1);
+            let w = 0, h = 0;
+            let rafId = 0;
+            let last = performance.now();
+
+            const rnd = (a, b) => a + Math.random() * (b - a);
+
+            const colorPalette = [
+                [255, 107, 178], // hot pink
+                [255, 165, 0],   // orange
+                [138, 203, 255], // sky blue
+                [186, 148, 255], // purple
+                [255, 223, 0],   // yellow
+                [100, 255, 150], // mint green
+            ];
+
+            let balls = [];
+            let particles = [];
+            let cannon = {
+                x: 0,
+                y: 0,
+                recoil: 0,
+                angle: -60 * Math.PI / 180
+            };
+
+            function resize() {
+                w = Math.max(1, window.innerWidth);
+                h = Math.max(1, window.innerHeight);
+                canvas.width = Math.floor(w * DPR);
+                canvas.height = Math.floor(h * DPR);
+                canvas.style.width = w + 'px';
+                canvas.style.height = h + 'px';
+                ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+                cannon.x = w * 0.15;
+                cannon.y = h - 80;
+            }
+
+            function createBall(message) {
+                const color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+                const angle = rnd(-70, -50) * Math.PI / 180;
+                const speed = rnd(12, 18);
+                
+                return {
+                    x: cannon.x + Math.cos(cannon.angle) * 60,
+                    y: cannon.y + Math.sin(cannon.angle) * 60,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    radius: rnd(25, 40),
+                    color: color,
+                    message: message.substring(0, 15),
+                    rotation: 0,
+                    rotationSpeed: rnd(-0.05, 0.05),
+                    life: 1.0,
+                    trail: [],
+                    glow: 1.0
+                };
+            }
+
+            function createExplosion() {
+                const count = 40;
+                for (let i = 0; i < count; i++) {
+                    const angle = (Math.PI * 2 * i / count) + rnd(-0.3, 0.3);
+                    const speed = rnd(3, 8);
+                    const color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+                    
+                    particles.push({
+                        x: cannon.x + Math.cos(cannon.angle) * 50,
+                        y: cannon.y + Math.sin(cannon.angle) * 50,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        radius: rnd(3, 7),
+                        color: color,
+                        life: 1.0,
+                        decay: rnd(0.015, 0.025),
+                        glow: true
+                    });
+                }
+            }
+
+            function createSparkles(x, y, count = 8) {
+                for (let i = 0; i < count; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = rnd(1, 3);
+                    const color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+                    
+                    particles.push({
+                        x: x,
+                        y: y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        radius: rnd(2, 4),
+                        color: color,
+                        life: 1.0,
+                        decay: rnd(0.02, 0.04),
+                        glow: true,
+                        sparkle: true
+                    });
+                }
+            }
+
+            function fire(message) {
+                cannon.recoil = 15;
+                createExplosion();
+                
+                setTimeout(() => {
+                    balls.push(createBall(message));
+                }, 50);
+            }
+
+            function drawCannon() {
+                ctx.save();
+                ctx.translate(cannon.x, cannon.y);
+                
+                if (cannon.recoil > 0) {
+                    ctx.translate(-cannon.recoil, 0);
+                    cannon.recoil *= 0.85;
+                    if (cannon.recoil < 0.1) cannon.recoil = 0;
+                }
+
+                ctx.rotate(cannon.angle);
+
+                // Cannon barrel
+                ctx.fillStyle = '#444';
+                ctx.strokeStyle = '#222';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.rect(0, -12, 60, 24);
+                ctx.fill();
+                ctx.stroke();
+
+                // Cannon barrel highlight
+                ctx.fillStyle = '#666';
+                ctx.beginPath();
+                ctx.rect(0, -12, 60, 8);
+                ctx.fill();
+
+                ctx.restore();
+
+                // Cannon base
+                ctx.fillStyle = '#555';
+                ctx.strokeStyle = '#222';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(cannon.x, cannon.y, 20, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Wheel decorations
+                ctx.fillStyle = '#777';
+                for (let i = 0; i < 6; i++) {
+                    const angle = (Math.PI * 2 * i / 6);
+                    const wx = cannon.x + Math.cos(angle) * 12;
+                    const wy = cannon.y + Math.sin(angle) * 12;
+                    ctx.beginPath();
+                    ctx.arc(wx, wy, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            function update(dt) {
+                // Update balls
+                for (let i = balls.length - 1; i >= 0; i--) {
+                    const b = balls[i];
+                    
+                    b.vy += 0.4; // gravity
+                    b.x += b.vx;
+                    b.y += b.vy;
+                    b.rotation += b.rotationSpeed;
+
+                    // Trail
+                    b.trail.push({ x: b.x, y: b.y, life: 0.6 });
+                    if (b.trail.length > 15) b.trail.shift();
+
+                    // Sparkles
+                    if (Math.random() < 0.15) {
+                        createSparkles(b.x, b.y, 2);
+                    }
+
+                    // Fade out at top
+                    if (b.y < h * 0.2) {
+                        b.life -= 0.015;
+                    }
+
+                    if (b.life <= 0 || b.y > h + 100) {
+                        balls.splice(i, 1);
+                    }
+                }
+
+                // Update particles
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const p = particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.2; // gravity
+                    p.life -= p.decay;
+
+                    if (p.life <= 0) {
+                        particles.splice(i, 1);
+                    }
+                }
+            }
+
+            function draw(now) {
+                const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000));
+                last = now;
+
+                ctx.clearRect(0, 0, w, h);
+
+                update(dt);
+
+                // Draw cannon
+                drawCannon();
+
+                // Draw particles
+                for (const p of particles) {
+                    const alpha = p.life;
+                    
+                    if (p.glow) {
+                        const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius * 3);
+                        gradient.addColorStop(0, `rgba(${p.color[0]}, ${p.color[1]}, ${p.color[2]}, ${alpha * 0.6})`);
+                        gradient.addColorStop(1, `rgba(${p.color[0]}, ${p.color[1]}, ${p.color[2]}, 0)`);
+                        ctx.fillStyle = gradient;
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, p.radius * 3, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    ctx.fillStyle = `rgba(${p.color[0]}, ${p.color[1]}, ${p.color[2]}, ${alpha})`;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Draw balls with trail
+                for (const b of balls) {
+                    // Trail
+                    for (let i = 0; i < b.trail.length; i++) {
+                        const t = b.trail[i];
+                        const alpha = t.life * (i / b.trail.length) * b.life * 0.4;
+                        const size = b.radius * 0.6 * (i / b.trail.length);
+                        
+                        ctx.fillStyle = `rgba(${b.color[0]}, ${b.color[1]}, ${b.color[2]}, ${alpha})`;
+                        ctx.beginPath();
+                        ctx.arc(t.x, t.y, size, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    // Ball glow
+                    const glowGradient = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.radius * 2);
+                    glowGradient.addColorStop(0, `rgba(${b.color[0]}, ${b.color[1]}, ${b.color[2]}, ${b.life * 0.3})`);
+                    glowGradient.addColorStop(1, `rgba(${b.color[0]}, ${b.color[1]}, ${b.color[2]}, 0)`);
+                    ctx.fillStyle = glowGradient;
+                    ctx.beginPath();
+                    ctx.arc(b.x, b.y, b.radius * 2, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Ball
+                    ctx.save();
+                    ctx.translate(b.x, b.y);
+                    ctx.rotate(b.rotation);
+
+                    const gradient = ctx.createRadialGradient(-b.radius * 0.3, -b.radius * 0.3, 0, 0, 0, b.radius);
+                    gradient.addColorStop(0, `rgba(${b.color[0] + 50}, ${b.color[1] + 50}, ${b.color[2] + 50}, ${b.life})`);
+                    gradient.addColorStop(1, `rgba(${b.color[0]}, ${b.color[1]}, ${b.color[2]}, ${b.life})`);
+                    
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, b.radius, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Ball border
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${b.life * 0.5})`;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    // Message text
+                    if (b.message && b.life > 0.5) {
+                        ctx.fillStyle = `rgba(255, 255, 255, ${b.life})`;
+                        ctx.font = 'bold 12px sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        const maxWidth = b.radius * 1.6;
+                        const text = b.message.length > 10 ? b.message.substring(0, 10) + '...' : b.message;
+                        ctx.fillText(text, 0, 0, maxWidth);
+                    }
+
+                    ctx.restore();
+                }
+
+                rafId = requestAnimationFrame(draw);
+            }
+
+            resize();
+            window.addEventListener('resize', resize, { passive: true });
+            rafId = requestAnimationFrame(draw);
+
+            // Expose fire function globally
+            window.cannonEffect = { fire };
         })();
     </script>
 </body>
