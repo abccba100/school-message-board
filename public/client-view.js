@@ -127,9 +127,15 @@ class Ball {
         // born pop timing
         this.bornAt = performance.now();
         
-        // 발사 애니메이션용
+        // 발사 애니메이션용 (곡선 비행)
         this.isLaunching = false;
         this.launchProgress = 0;
+        this.launchStartX = 0;
+        this.launchStartY = 0;
+        this.launchTargetX = 0;
+        this.launchTargetY = 0;
+        this.launchControlX = 0;
+        this.launchControlY = 0;
         
         this.createElement();
     }
@@ -203,19 +209,66 @@ class Ball {
     }
 
     update(dt, now) {
-        // 발사 애니메이션 처리
+        // 발사 애니메이션 처리 (베지어 곡선 비행)
         if (this.isLaunching) {
-            this.launchProgress += dt * 2.5; // 발사 애니메이션 속도
+            this.launchProgress += dt * 1.4; // 비행 속도 (약 0.7초)
             
             if (this.launchProgress >= 1.0) {
                 this.isLaunching = false;
                 this.launchProgress = 1.0;
+                // 도착 시 약간의 속도 부여 (자연스러운 전환)
+                this.vx = (Math.random() - 0.5) * 30;
+                this.vy = (Math.random() - 0.5) * 30;
+                // 도착 폭발 이펙트!
+                if (window.launchEffect && window.launchEffect.createArrivalBurst) {
+                    window.launchEffect.createArrivalBurst(this.x, this.y);
+                }
+                // 도착 스쿼시 (찌그러짐)
+                this.squishX = -0.2;
+                this.squishY = 0.15;
             }
             
-            // 발사 중 강한 스쿼시 효과 (발사 방향으로 늘어남)
-            const stretchAmount = (1.0 - this.launchProgress) * 0.7;
+            // easeOutCubic for smooth deceleration
+            const t = 1 - Math.pow(1 - this.launchProgress, 3);
+            
+            // 2차 베지어 곡선: start -> control -> target
+            const oneMinusT = 1 - t;
+            const newX = oneMinusT * oneMinusT * this.launchStartX
+                       + 2 * oneMinusT * t * this.launchControlX
+                       + t * t * this.launchTargetX;
+            const newY = oneMinusT * oneMinusT * this.launchStartY
+                       + 2 * oneMinusT * t * this.launchControlY
+                       + t * t * this.launchTargetY;
+            
+            // 속도 계산 (다음 프레임 방향 참고용)
+            this.vx = (newX - this.x) / Math.max(dt, 0.001);
+            this.vy = (newY - this.y) / Math.max(dt, 0.001);
+            
+            this.x = newX;
+            this.y = newY;
+            
+            // 비행 중 스쿼시 (진행방향으로 늘어남)
+            const speed = Math.hypot(this.vx, this.vy);
+            const stretchAmount = clamp(speed / 800, 0, 0.6) * (1.0 - this.launchProgress);
             this.squishX = stretchAmount;
             this.squishY = -stretchAmount * 0.5;
+            
+            // 비행 중 파티클 트레일 이벤트 발생
+            if (window.launchEffect && window.launchEffect.emitTrail) {
+                window.launchEffect.emitTrail(this.x, this.y, this.vx, this.vy, this.hue);
+            }
+            
+            // update DOM during launch (skip normal physics)
+            if (this.element) {
+                const tx = (this.x - this.radius);
+                const ty = (this.y - this.radius);
+                // 비행방향 각도 계산
+                const flyAngle = Math.atan2(this.vy, this.vx) * (180 / Math.PI);
+                const tiltAmount = clamp(speed / 600, 0, 1) * (1 - this.launchProgress);
+                const displayRot = lerp(this.rot, flyAngle * 0.15, tiltAmount);
+                this.element.style.transform = `translate3d(${tx}px, ${ty}px, 0) rotate(${displayRot}deg) scale(${1 + this.squishX}, ${1 + this.squishY})`;
+            }
+            return; // 발사 중에는 일반 물리 스킵
         }
         
         // sticky drag (frame-rate independent)
@@ -525,7 +578,7 @@ function animate(now) {
     animationId = requestAnimationFrame(animate);
 }
 
-// Add new ball - 왼쪽 아래에서 발사!
+// Add new ball - 왼쪽 아래에서 중앙으로 비행!
 function addBall(message, isNew = false) {
     // 발사 지점 (왼쪽 아래 끝)
     const launchX = 80;
@@ -534,23 +587,35 @@ function addBall(message, isNew = false) {
     const ball = new Ball(message.id, message.content, launchX, launchY);
     
     if (isNew) {
-        // 발사 애니메이션 플래그
+        // 도착 지점 (화면 중앙 근처, 약간의 랜덤)
+        const targetX = containerWidth * 0.5 + (Math.random() - 0.5) * containerWidth * 0.25;
+        const targetY = containerHeight * 0.5 + (Math.random() - 0.5) * containerHeight * 0.2;
+        
+        // 베지어 곡선 제어점 (위쪽으로 호를 그리는 포물선)
+        const controlX = launchX + (targetX - launchX) * 0.3 + (Math.random() - 0.5) * 80;
+        const controlY = Math.min(launchY, targetY) - containerHeight * 0.3 - Math.random() * 100;
+        
+        // 발사 애니메이션 설정
         ball.isLaunching = true;
         ball.launchProgress = 0;
+        ball.launchStartX = launchX;
+        ball.launchStartY = launchY;
+        ball.launchTargetX = targetX;
+        ball.launchTargetY = targetY;
+        ball.launchControlX = controlX;
+        ball.launchControlY = controlY;
         
-        // 오른쪽 위로 강력하게 발사 (45도)
-        const angle = -45 * Math.PI / 180;
-        const speed = 450 + Math.random() * 100; // 매우 빠른 발사
-        ball.vx = Math.cos(angle) * speed;
-        ball.vy = Math.sin(angle) * speed;
+        // 초기 속도 (곡선 시작 방향)
+        ball.vx = 0;
+        ball.vy = 0;
         
         // 발사 방향으로 회전 킥
         ball.rotV = (Math.random() - 0.5) * 50;
         
-        // Push away existing balls (충격파 효과)
+        // Push away existing balls near target (도착지 충격파 효과)
         balls.forEach(existingBall => {
-            const dx = existingBall.x - launchX;
-            const dy = existingBall.y - launchY;
+            const dx = existingBall.x - targetX;
+            const dy = existingBall.y - targetY;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
             if (distance < 350 && distance > 0) {
@@ -574,6 +639,7 @@ window.addEventListener('resize', () => {
 });
 
 // Connect socket
+const io = window.io; // Declare the io variable before using it
 socket = io();
 
 socket.on('connect', async () => {
