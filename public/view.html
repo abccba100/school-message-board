@@ -206,13 +206,32 @@
             }
 
             function createLaunchBurst() {
-                const count = 60;
+                const count = 90;
                 const angle = -45 * Math.PI / 180;
                 
-                // 발사 방향 주변으로 퍼지는 파티클
+                // 발사 방향 주변으로 퍼지는 파티클 (더 많고 더 화려하게)
                 for (let i = 0; i < count; i++) {
-                    const spreadAngle = angle + rnd(-0.6, 0.6);
-                    const speed = rnd(8, 18);
+                    const spreadAngle = angle + rnd(-0.8, 0.8);
+                    const speed = rnd(6, 24);
+                    const color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+                    
+                    particles.push({
+                        x: launchPoint.x + rnd(-10, 10),
+                        y: launchPoint.y + rnd(-10, 10),
+                        vx: Math.cos(spreadAngle) * speed,
+                        vy: Math.sin(spreadAngle) * speed,
+                        radius: rnd(3, 12),
+                        color: color,
+                        life: 1.0,
+                        decay: rnd(0.012, 0.028),
+                        glow: true
+                    });
+                }
+                
+                // 전방향 폭발 (원형으로 퍼지는 추가 파티클)
+                for (let i = 0; i < 40; i++) {
+                    const spreadAngle = rnd(0, Math.PI * 2);
+                    const speed = rnd(4, 14);
                     const color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
                     
                     particles.push({
@@ -220,72 +239,103 @@
                         y: launchPoint.y,
                         vx: Math.cos(spreadAngle) * speed,
                         vy: Math.sin(spreadAngle) * speed,
-                        radius: rnd(4, 10),
+                        radius: rnd(2, 7),
                         color: color,
                         life: 1.0,
-                        decay: rnd(0.015, 0.03),
+                        decay: rnd(0.02, 0.04),
                         glow: true
                     });
                 }
 
-                // 원형 폭발 링
-                for (let i = 0; i < 5; i++) {
+                // 원형 폭발 링 (더 많이)
+                for (let i = 0; i < 7; i++) {
                     rings.push({
                         x: launchPoint.x,
                         y: launchPoint.y,
                         radius: 0,
-                        maxRadius: rnd(100, 180),
-                        speed: rnd(5, 9),
+                        maxRadius: rnd(80, 220),
+                        speed: rnd(4, 12),
                         color: colorPalette[Math.floor(Math.random() * colorPalette.length)],
                         life: 1.0,
-                        width: rnd(5, 10)
+                        width: rnd(4, 12)
+                    });
+                }
+                
+                // 발사 지점 플래시 (밝은 원형 글로우)
+                for (let i = 0; i < 3; i++) {
+                    flyTrails.push({
+                        x: launchPoint.x + rnd(-5, 5),
+                        y: launchPoint.y + rnd(-5, 5),
+                        vx: rnd(-3, 3),
+                        vy: rnd(-3, 3),
+                        radius: rnd(20, 40),
+                        color: [255, 255, 255],
+                        life: 1.0,
+                        decay: rnd(0.04, 0.07),
                     });
                 }
             }
 
             function createStarBurst() {
-                const count = 25;
+                const count = 35;
                 for (let i = 0; i < count; i++) {
                     const angle = (Math.PI * 2 * i / count) + rnd(-0.3, 0.3);
-                    const distance = rnd(25, 55);
+                    const distance = rnd(20, 70);
                     
                     stars.push({
                         x: launchPoint.x + Math.cos(angle) * distance,
                         y: launchPoint.y + Math.sin(angle) * distance,
-                        size: rnd(12, 22),
+                        size: rnd(10, 26),
                         color: colorPalette[Math.floor(Math.random() * colorPalette.length)],
                         life: 1.0,
                         rotation: rnd(0, Math.PI * 2),
-                        rotationSpeed: rnd(-0.25, 0.25)
+                        rotationSpeed: rnd(-0.3, 0.3)
                     });
                 }
             }
 
             function createSparkTrail() {
-                const count = 20;
+                const count = 30;
                 const angle = -45 * Math.PI / 180;
                 
                 for (let i = 0; i < count; i++) {
-                    const distance = i * 15;
+                    const distance = i * 12;
                     trails.push({
-                        x: launchPoint.x + Math.cos(angle) * distance,
-                        y: launchPoint.y + Math.sin(angle) * distance,
-                        vx: Math.cos(angle) * rnd(3, 6),
-                        vy: Math.sin(angle) * rnd(3, 6),
-                        radius: rnd(6, 14),
+                        x: launchPoint.x + Math.cos(angle) * distance + rnd(-8, 8),
+                        y: launchPoint.y + Math.sin(angle) * distance + rnd(-8, 8),
+                        vx: Math.cos(angle) * rnd(3, 8) + rnd(-2, 2),
+                        vy: Math.sin(angle) * rnd(3, 8) + rnd(-2, 2),
+                        radius: rnd(5, 16),
                         color: colorPalette[Math.floor(Math.random() * colorPalette.length)],
                         life: 1.0,
-                        decay: rnd(0.02, 0.04),
+                        decay: rnd(0.015, 0.035),
                         glow: true
+                    });
+                }
+                
+                // 추가: 발사 방향으로 빠른 미니 반짝이
+                for (let i = 0; i < 15; i++) {
+                    const sparkColor = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+                    flySparkles.push({
+                        x: launchPoint.x + rnd(-15, 15),
+                        y: launchPoint.y + rnd(-15, 15),
+                        vx: Math.cos(angle) * rnd(40, 100) + rnd(-30, 30),
+                        vy: Math.sin(angle) * rnd(40, 100) + rnd(-30, 30),
+                        radius: rnd(2, 5),
+                        color: sparkColor,
+                        life: 1.0,
+                        decay: rnd(0.03, 0.06),
+                        twinkle: rnd(10, 20),
+                        twinklePhase: rnd(0, Math.PI * 2),
                     });
                 }
             }
 
             // 비행 중 트레일 파티클 생성 (client-view.js에서 호출)
             let lastTrailTime = 0;
-            function emitTrail(x, y, vx, vy, hue) {
+            function emitTrail(x, y, vx, vy, hue, progress) {
                 const now = performance.now();
-                if (now - lastTrailTime < 25) return;
+                if (now - lastTrailTime < 16) return; // 60fps에 맞춰 더 자주 생성
                 lastTrailTime = now;
                 
                 // HSL -> RGB 변환 (파스텔)
@@ -309,97 +359,163 @@
                 ];
                 
                 const speed = Math.hypot(vx, vy);
-                const count = Math.max(2, Math.min(6, Math.floor(speed / 150)));
+                const intensity = 1.0 - (progress || 0); // 초반에 더 강하게
+                const count = Math.max(3, Math.min(10, Math.floor(speed / 100 * intensity + 2)));
                 
+                // 메인 글로우 트레일 (공 색상)
                 for (let i = 0; i < count; i++) {
                     flyTrails.push({
-                        x: x + rnd(-8, 8),
-                        y: y + rnd(-8, 8),
-                        vx: -vx * rnd(0.01, 0.05) + rnd(-15, 15),
-                        vy: -vy * rnd(0.01, 0.05) + rnd(-15, 15),
-                        radius: rnd(4, 12),
+                        x: x + rnd(-12, 12),
+                        y: y + rnd(-12, 12),
+                        vx: -vx * rnd(0.02, 0.08) + rnd(-20, 20),
+                        vy: -vy * rnd(0.02, 0.08) + rnd(-20, 20),
+                        radius: rnd(4, 14) * intensity + 2,
                         color: ballColor,
                         life: 1.0,
-                        decay: rnd(0.02, 0.045),
+                        decay: rnd(0.018, 0.04),
                     });
                 }
                 
-                // 반짝이 (랜덤 색상, 작고 빠르게 사라짐)
-                if (Math.random() < 0.6) {
+                // 컬러 트레일 (랜덤 팔레트 색상)
+                for (let i = 0; i < Math.ceil(count * 0.5); i++) {
+                    const color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+                    flyTrails.push({
+                        x: x + rnd(-18, 18),
+                        y: y + rnd(-18, 18),
+                        vx: -vx * rnd(0.01, 0.04) + rnd(-25, 25),
+                        vy: -vy * rnd(0.01, 0.04) + rnd(-25, 25),
+                        radius: rnd(3, 8) * intensity + 1,
+                        color: color,
+                        life: 1.0,
+                        decay: rnd(0.025, 0.055),
+                    });
+                }
+                
+                // 반짝이 (더 많이, 주변으로 넓게)
+                const sparkCount = Math.max(1, Math.floor(3 * intensity));
+                for (let i = 0; i < sparkCount; i++) {
                     const sparkColor = colorPalette[Math.floor(Math.random() * colorPalette.length)];
                     flySparkles.push({
-                        x: x + rnd(-15, 15),
-                        y: y + rnd(-15, 15),
-                        vx: rnd(-40, 40),
-                        vy: rnd(-40, 40),
-                        radius: rnd(1.5, 4),
+                        x: x + rnd(-20, 20),
+                        y: y + rnd(-20, 20),
+                        vx: rnd(-50, 50),
+                        vy: rnd(-50, 50),
+                        radius: rnd(1.5, 4.5),
                         color: sparkColor,
                         life: 1.0,
-                        decay: rnd(0.04, 0.08),
-                        twinkle: rnd(8, 16),
+                        decay: rnd(0.035, 0.07),
+                        twinkle: rnd(8, 18),
                         twinklePhase: rnd(0, Math.PI * 2),
                     });
                 }
                 
-                // 가끔 미니 별 생성
-                if (Math.random() < 0.15) {
+                // 미니 별 (더 자주 등장)
+                if (Math.random() < 0.3) {
                     stars.push({
-                        x: x + rnd(-20, 20),
-                        y: y + rnd(-20, 20),
-                        size: rnd(6, 12),
+                        x: x + rnd(-25, 25),
+                        y: y + rnd(-25, 25),
+                        size: rnd(5, 14),
+                        color: colorPalette[Math.floor(Math.random() * colorPalette.length)],
+                        life: 1.0,
+                        rotation: rnd(0, Math.PI * 2),
+                        rotationSpeed: rnd(-0.4, 0.4)
+                    });
+                }
+                
+                // 가끔 비행 경로에 미니 링
+                if (Math.random() < 0.12 && intensity > 0.3) {
+                    rings.push({
+                        x: x,
+                        y: y,
+                        radius: 0,
+                        maxRadius: rnd(25, 55),
+                        speed: rnd(3, 6),
+                        color: ballColor,
+                        life: 1.0,
+                        width: rnd(1.5, 3.5)
+                    });
+                }
+            }
+            
+            // 도착 시 폭발 효과 (더 화려하게)
+            function createArrivalBurst(x, y) {
+                // 원형 폭발 파티클
+                const count = 50;
+                for (let i = 0; i < count; i++) {
+                    const angle = (Math.PI * 2 * i / count) + rnd(-0.2, 0.2);
+                    const speed = rnd(20, 140);
+                    const color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+                    
+                    particles.push({
+                        x: x + rnd(-5, 5),
+                        y: y + rnd(-5, 5),
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        radius: rnd(3, 10),
+                        color: color,
+                        life: 1.0,
+                        decay: rnd(0.015, 0.035),
+                        glow: true
+                    });
+                }
+                
+                // 도착 링 (더 크고 더 많이)
+                for (let i = 0; i < 5; i++) {
+                    rings.push({
+                        x: x,
+                        y: y,
+                        radius: 0,
+                        maxRadius: rnd(50, 180),
+                        speed: rnd(3, 10),
+                        color: colorPalette[Math.floor(Math.random() * colorPalette.length)],
+                        life: 1.0,
+                        width: rnd(3, 8)
+                    });
+                }
+                
+                // 도착 별
+                for (let i = 0; i < 18; i++) {
+                    const angle = (Math.PI * 2 * i / 18) + rnd(-0.3, 0.3);
+                    const distance = rnd(12, 60);
+                    stars.push({
+                        x: x + Math.cos(angle) * distance,
+                        y: y + Math.sin(angle) * distance,
+                        size: rnd(7, 18),
                         color: colorPalette[Math.floor(Math.random() * colorPalette.length)],
                         life: 1.0,
                         rotation: rnd(0, Math.PI * 2),
                         rotationSpeed: rnd(-0.35, 0.35)
                     });
                 }
-            }
-            
-            // 도착 시 폭발 효과
-            function createArrivalBurst(x, y) {
-                const count = 35;
-                for (let i = 0; i < count; i++) {
-                    const angle = (Math.PI * 2 * i / count) + rnd(-0.2, 0.2);
-                    const speed = rnd(30, 120);
-                    const color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
-                    
-                    particles.push({
-                        x: x,
-                        y: y,
-                        vx: Math.cos(angle) * speed,
-                        vy: Math.sin(angle) * speed,
-                        radius: rnd(3, 8),
-                        color: color,
+                
+                // 도착 플래시 글로우
+                for (let i = 0; i < 4; i++) {
+                    flyTrails.push({
+                        x: x + rnd(-8, 8),
+                        y: y + rnd(-8, 8),
+                        vx: rnd(-5, 5),
+                        vy: rnd(-5, 5),
+                        radius: rnd(15, 35),
+                        color: [255, 255, 255],
                         life: 1.0,
-                        decay: rnd(0.02, 0.04),
-                        glow: true
+                        decay: rnd(0.04, 0.07),
                     });
                 }
                 
-                for (let i = 0; i < 3; i++) {
-                    rings.push({
-                        x: x,
-                        y: y,
-                        radius: 0,
-                        maxRadius: rnd(60, 140),
-                        speed: rnd(4, 8),
-                        color: colorPalette[Math.floor(Math.random() * colorPalette.length)],
-                        life: 1.0,
-                        width: rnd(3, 7)
-                    });
-                }
-                
+                // 도착 반짝이
                 for (let i = 0; i < 12; i++) {
-                    const angle = (Math.PI * 2 * i / 12) + rnd(-0.3, 0.3);
-                    const distance = rnd(15, 45);
-                    stars.push({
-                        x: x + Math.cos(angle) * distance,
-                        y: y + Math.sin(angle) * distance,
-                        size: rnd(8, 16),
-                        color: colorPalette[Math.floor(Math.random() * colorPalette.length)],
+                    const sparkColor = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+                    flySparkles.push({
+                        x: x + rnd(-20, 20),
+                        y: y + rnd(-20, 20),
+                        vx: rnd(-60, 60),
+                        vy: rnd(-60, 60),
+                        radius: rnd(2, 5),
+                        color: sparkColor,
                         life: 1.0,
-                        rotation: rnd(0, Math.PI * 2),
-                        rotationSpeed: rnd(-0.3, 0.3)
+                        decay: rnd(0.03, 0.06),
+                        twinkle: rnd(10, 20),
+                        twinklePhase: rnd(0, Math.PI * 2),
                     });
                 }
             }
