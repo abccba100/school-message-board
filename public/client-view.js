@@ -506,22 +506,25 @@ function animate(now) {
     animationId = requestAnimationFrame(animate);
 }
 
-// Add new ball at center
+// Add new ball - 대포 위치에서 시작!
 function addBall(message, isNew = false) {
-    const centerX = containerWidth / 2;
-    const centerY = containerHeight / 2;
+    // 대포 위치 (왼쪽 아래)
+    const cannonX = 150;
+    const cannonY = containerHeight - 100;
     
-    const ball = new Ball(message.id, message.content, centerX, centerY);
+    const ball = new Ball(message.id, message.content, cannonX, cannonY);
     
     if (isNew) {
-        // Give initial random velocity
-        ball.vx = (Math.random() - 0.5) * 110;
-        ball.vy = (Math.random() - 0.5) * 110;
+        // 대포에서 발사되는 듯한 초기 속도 (오른쪽 위 방향)
+        const angle = -45 * Math.PI / 180; // 45도 위쪽
+        const speed = 300 + Math.random() * 100; // 빠른 초기 속도
+        ball.vx = Math.cos(angle) * speed;
+        ball.vy = Math.sin(angle) * speed;
         
         // Push away existing balls
         balls.forEach(existingBall => {
-            const dx = existingBall.x - centerX;
-            const dy = existingBall.y - centerY;
+            const dx = existingBall.x - cannonX;
+            const dy = existingBall.y - cannonY;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
             if (distance < 240 && distance > 0) {
@@ -562,7 +565,15 @@ socket.on('connect_error', (error) => {
 });
 
 socket.on('newMessage', (message) => {
-    addBall(message, true);
+    // 🎉 대포 발사!
+    if (window.cannonEffect) {
+        window.cannonEffect.fire();
+    }
+    
+    // 약간의 딜레이 후 메시지 공 추가 (대포에서 발사되는 느낌)
+    setTimeout(() => {
+        addBall(message, true);
+    }, 100);
 });
 
 socket.on('disconnect', () => {
