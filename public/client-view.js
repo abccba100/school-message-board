@@ -1,3 +1,9 @@
+const CANNON = window.cannonEffect?.CANNON || {
+    x: 150,
+    y: () => containerHeight - 100,
+    angle: -45 * Math.PI / 180
+};
+
 // ============================================
 // 조절 가능한 파라미터 목록
 // ============================================
@@ -508,38 +514,39 @@ function animate(now) {
 
 // Add new ball - 대포 위치에서 시작!
 function addBall(message, isNew = false) {
-    // 대포 위치 (왼쪽 아래)
-    const cannonX = 150;
-    const cannonY = containerHeight - 100;
-    
-    const ball = new Ball(message.id, message.content, cannonX, cannonY);
-    
+    const startX = isNew ? CANNON.x : Math.random() * containerWidth;
+    const startY = isNew ? CANNON.y() : Math.random() * containerHeight;
+
+    const ball = new Ball(message.id, message.content, startX, startY);
+
     if (isNew) {
-        // 대포에서 발사되는 듯한 초기 속도 (오른쪽 위 방향)
-        const angle = -45 * Math.PI / 180; // 45도 위쪽
-        const speed = 300 + Math.random() * 100; // 빠른 초기 속도
-        ball.vx = Math.cos(angle) * speed;
-        ball.vy = Math.sin(angle) * speed;
-        
-        // Push away existing balls
-        balls.forEach(existingBall => {
-            const dx = existingBall.x - cannonX;
-            const dy = existingBall.y - cannonY;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            if (distance < 240 && distance > 0) {
-                const force = 52 / Math.max(90, distance);
-                const fx = (dx / distance) * force;
-                const fy = (dy / distance) * force;
-                existingBall.applyForce(fx, fy);
-                existingBall.squishX += clamp((dx / distance) * 0.06, -0.08, 0.08);
-                existingBall.squishY += clamp((dy / distance) * 0.06, -0.08, 0.08);
+        // 🔥 발사 방향 속도
+        const speed = 320 + Math.random() * 120;
+        ball.vx = Math.cos(CANNON.angle) * speed;
+        ball.vy = Math.sin(CANNON.angle) * speed;
+
+        // 말랑한 초기 스쿼시
+        ball.squishX -= 0.18;
+        ball.squishY += 0.28;
+        ball.rotV += (Math.random() - 0.5) * 40;
+
+        // 주변 공 밀어내기 (기존 충돌 감성 유지)
+        balls.forEach(b => {
+            const dx = b.x - startX;
+            const dy = b.y - startY;
+            const d = Math.hypot(dx, dy);
+            if (d > 0 && d < 260) {
+                const f = 60 / Math.max(120, d);
+                b.applyForce((dx / d) * f, (dy / d) * f);
+                b.squishX += clamp(dx / d * 0.08, -0.12, 0.12);
+                b.squishY += clamp(dy / d * 0.08, -0.12, 0.12);
             }
         });
     }
-    
+
     balls.push(ball);
 }
+
 
 // Initialize
 updateContainerSize();
@@ -565,15 +572,15 @@ socket.on('connect_error', (error) => {
 });
 
 socket.on('newMessage', (message) => {
-    // 🎉 대포 발사!
+    // 🎉 시각 효과
     if (window.cannonEffect) {
         window.cannonEffect.fire();
     }
-    
-    // 약간의 딜레이 후 메시지 공 추가 (대포에서 발사되는 느낌)
+
+    // 타이밍 맞춰 공 생성
     setTimeout(() => {
         addBall(message, true);
-    }, 100);
+    }, 120);
 });
 
 socket.on('disconnect', () => {
