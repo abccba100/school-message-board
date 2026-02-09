@@ -208,16 +208,20 @@
                 [186, 148, 255], // purple
                 [255, 223, 0],   // yellow
                 [100, 255, 150], // mint green
+                [255, 100, 100], // red
+                [100, 200, 255], // light blue
             ];
 
             let balls = [];
             let particles = [];
+            let stars = [];
+            let rings = [];
             let cannon = {
                 x: 0,
                 y: 0,
                 recoil: 0,
-                angle: -135 * Math.PI / 180,  // 오른쪽 위로 발사
-                scale: 1.5  // 1.5배 크기
+                angle: -45 * Math.PI / 180,  // 오른쪽 위 45도
+                scale: 1.5
             };
 
             function resize() {
@@ -229,37 +233,37 @@
                 canvas.style.height = h + 'px';
                 ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 
-                // 오른쪽 위 위치
-                cannon.x = w - 120;
-                cannon.y = 120;
+                // 왼쪽 아래 위치
+                cannon.x = 150;
+                cannon.y = h - 100;
             }
 
             function createBall(message) {
                 const color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
-                const angle = rnd(-145, -125) * Math.PI / 180;  // 오른쪽 위 방향
-                const speed = rnd(12, 18);
+                const speed = rnd(20, 25);  // 더 빠르게
                 
                 return {
                     x: cannon.x + Math.cos(cannon.angle) * 90 * cannon.scale,
                     y: cannon.y + Math.sin(cannon.angle) * 90 * cannon.scale,
-                    vx: Math.cos(angle) * speed,
-                    vy: Math.sin(angle) * speed,
-                    radius: rnd(25, 40),
+                    vx: Math.cos(cannon.angle) * speed,
+                    vy: Math.sin(cannon.angle) * speed,
+                    radius: rnd(30, 45),
                     color: color,
                     message: message.substring(0, 15),
                     rotation: 0,
-                    rotationSpeed: rnd(-0.05, 0.05),
+                    rotationSpeed: rnd(-0.08, 0.08),
                     life: 1.0,
                     trail: [],
-                    glow: 1.0
+                    glow: 1.0,
+                    pulsePhase: 0
                 };
             }
 
             function createExplosion() {
-                const count = 40;
+                const count = 60;  // 더 많은 파티클
                 for (let i = 0; i < count; i++) {
                     const angle = (Math.PI * 2 * i / count) + rnd(-0.3, 0.3);
-                    const speed = rnd(3, 8);
+                    const speed = rnd(4, 12);
                     const color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
                     
                     particles.push({
@@ -267,19 +271,33 @@
                         y: cannon.y + Math.sin(cannon.angle) * 75 * cannon.scale,
                         vx: Math.cos(angle) * speed,
                         vy: Math.sin(angle) * speed,
-                        radius: rnd(3, 7),
+                        radius: rnd(4, 9),
                         color: color,
                         life: 1.0,
-                        decay: rnd(0.015, 0.025),
+                        decay: rnd(0.012, 0.02),
                         glow: true
+                    });
+                }
+
+                // 폭발 링 추가
+                for (let i = 0; i < 3; i++) {
+                    rings.push({
+                        x: cannon.x + Math.cos(cannon.angle) * 75 * cannon.scale,
+                        y: cannon.y + Math.sin(cannon.angle) * 75 * cannon.scale,
+                        radius: 0,
+                        maxRadius: rnd(80, 120),
+                        speed: rnd(3, 5),
+                        color: colorPalette[Math.floor(Math.random() * colorPalette.length)],
+                        life: 1.0,
+                        width: rnd(3, 6)
                     });
                 }
             }
 
-            function createSparkles(x, y, count = 8) {
+            function createSparkles(x, y, count = 12) {
                 for (let i = 0; i < count; i++) {
                     const angle = Math.random() * Math.PI * 2;
-                    const speed = rnd(1, 3);
+                    const speed = rnd(2, 5);
                     const color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
                     
                     particles.push({
@@ -287,7 +305,7 @@
                         y: y,
                         vx: Math.cos(angle) * speed,
                         vy: Math.sin(angle) * speed,
-                        radius: rnd(2, 4),
+                        radius: rnd(2, 5),
                         color: color,
                         life: 1.0,
                         decay: rnd(0.02, 0.04),
@@ -297,12 +315,51 @@
                 }
             }
 
+            function createStars(x, y, count = 8) {
+                for (let i = 0; i < count; i++) {
+                    const angle = (Math.PI * 2 * i / count) + rnd(-0.2, 0.2);
+                    const distance = rnd(15, 35);
+                    
+                    stars.push({
+                        x: x + Math.cos(angle) * distance,
+                        y: y + Math.sin(angle) * distance,
+                        size: rnd(8, 15),
+                        color: colorPalette[Math.floor(Math.random() * colorPalette.length)],
+                        life: 1.0,
+                        rotation: rnd(0, Math.PI * 2),
+                        rotationSpeed: rnd(-0.15, 0.15)
+                    });
+                }
+            }
+
+            function createRainbowTrail(x, y) {
+                const count = 5;
+                for (let i = 0; i < count; i++) {
+                    const color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+                    particles.push({
+                        x: x + rnd(-10, 10),
+                        y: y + rnd(-10, 10),
+                        vx: rnd(-1, 1),
+                        vy: rnd(-1, 1),
+                        radius: rnd(3, 6),
+                        color: color,
+                        life: 0.8,
+                        decay: 0.03,
+                        glow: true
+                    });
+                }
+            }
+
             function fire(message) {
-                cannon.recoil = 15 * cannon.scale;
+                cannon.recoil = 20 * cannon.scale;
                 createExplosion();
                 
                 setTimeout(() => {
-                    balls.push(createBall(message));
+                    const ball = createBall(message);
+                    balls.push(ball);
+                    
+                    // 발사 시 별 효과
+                    createStars(ball.x, ball.y, 12);
                 }, 50);
             }
 
@@ -314,15 +371,25 @@
                     const recoilX = Math.cos(cannon.angle) * cannon.recoil;
                     const recoilY = Math.sin(cannon.angle) * cannon.recoil;
                     ctx.translate(recoilX, recoilY);
-                    cannon.recoil *= 0.85;
+                    cannon.recoil *= 0.8;
                     if (cannon.recoil < 0.1) cannon.recoil = 0;
                 }
 
                 ctx.rotate(cannon.angle);
                 ctx.scale(cannon.scale, cannon.scale);
 
+                // Cannon barrel shadow
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                ctx.beginPath();
+                ctx.rect(2, -10, 60, 24);
+                ctx.fill();
+
                 // Cannon barrel
-                ctx.fillStyle = '#444';
+                const barrelGradient = ctx.createLinearGradient(0, -12, 0, 12);
+                barrelGradient.addColorStop(0, '#555');
+                barrelGradient.addColorStop(0.5, '#333');
+                barrelGradient.addColorStop(1, '#444');
+                ctx.fillStyle = barrelGradient;
                 ctx.strokeStyle = '#222';
                 ctx.lineWidth = 3;
                 ctx.beginPath();
@@ -331,10 +398,20 @@
                 ctx.stroke();
 
                 // Cannon barrel highlight
-                ctx.fillStyle = '#666';
+                ctx.fillStyle = '#777';
                 ctx.beginPath();
-                ctx.rect(0, -12, 60, 8);
+                ctx.rect(0, -12, 60, 6);
                 ctx.fill();
+
+                // Barrel stripes
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 2;
+                for (let i = 10; i < 60; i += 15) {
+                    ctx.beginPath();
+                    ctx.moveTo(i, -10);
+                    ctx.lineTo(i, 10);
+                    ctx.stroke();
+                }
 
                 ctx.restore();
 
@@ -343,7 +420,10 @@
                 ctx.translate(cannon.x, cannon.y);
                 ctx.scale(cannon.scale, cannon.scale);
                 
-                ctx.fillStyle = '#555';
+                const baseGradient = ctx.createRadialGradient(-5, -5, 0, 0, 0, 20);
+                baseGradient.addColorStop(0, '#666');
+                baseGradient.addColorStop(1, '#333');
+                ctx.fillStyle = baseGradient;
                 ctx.strokeStyle = '#222';
                 ctx.lineWidth = 3;
                 ctx.beginPath();
@@ -352,15 +432,21 @@
                 ctx.stroke();
 
                 // Wheel decorations
-                ctx.fillStyle = '#777';
-                for (let i = 0; i < 6; i++) {
-                    const angle = (Math.PI * 2 * i / 6);
-                    const wx = Math.cos(angle) * 12;
-                    const wy = Math.sin(angle) * 12;
+                ctx.fillStyle = '#888';
+                for (let i = 0; i < 8; i++) {
+                    const angle = (Math.PI * 2 * i / 8);
+                    const wx = Math.cos(angle) * 13;
+                    const wy = Math.sin(angle) * 13;
                     ctx.beginPath();
-                    ctx.arc(wx, wy, 2, 0, Math.PI * 2);
+                    ctx.arc(wx, wy, 2.5, 0, Math.PI * 2);
                     ctx.fill();
                 }
+
+                // Center decoration
+                ctx.fillStyle = '#aaa';
+                ctx.beginPath();
+                ctx.arc(0, 0, 5, 0, Math.PI * 2);
+                ctx.fill();
                 
                 ctx.restore();
             }
@@ -370,26 +456,33 @@
                 for (let i = balls.length - 1; i >= 0; i--) {
                     const b = balls[i];
                     
-                    b.vy += 0.4; // gravity
+                    // 직선으로 날아감 (중력 없음)
                     b.x += b.vx;
                     b.y += b.vy;
                     b.rotation += b.rotationSpeed;
+                    b.pulsePhase += 0.1;
 
                     // Trail
-                    b.trail.push({ x: b.x, y: b.y, life: 0.6 });
-                    if (b.trail.length > 15) b.trail.shift();
+                    b.trail.push({ x: b.x, y: b.y, life: 0.8 });
+                    if (b.trail.length > 25) b.trail.shift();
 
-                    // Sparkles
+                    // 더 화려한 이펙트
+                    if (Math.random() < 0.3) {
+                        createSparkles(b.x, b.y, 3);
+                    }
                     if (Math.random() < 0.15) {
-                        createSparkles(b.x, b.y, 2);
+                        createRainbowTrail(b.x, b.y);
+                    }
+                    if (Math.random() < 0.1) {
+                        createStars(b.x, b.y, 2);
                     }
 
-                    // Fade out at edges
-                    if (b.y < h * 0.1 || b.x > w * 0.9 || b.x < w * 0.1) {
-                        b.life -= 0.015;
+                    // Fade out when reaching top-right
+                    if (b.x > w * 0.7 || b.y < h * 0.3) {
+                        b.life -= 0.01;
                     }
 
-                    if (b.life <= 0 || b.y > h + 100 || b.x < -100 || b.x > w + 100) {
+                    if (b.life <= 0 || b.x > w + 100 || b.y < -100) {
                         balls.splice(i, 1);
                     }
                 }
@@ -399,13 +492,69 @@
                     const p = particles[i];
                     p.x += p.vx;
                     p.y += p.vy;
-                    p.vy += 0.2; // gravity
+                    
+                    if (!p.sparkle) {
+                        p.vy += 0.15; // 약간의 중력
+                    }
+                    
+                    p.vx *= 0.98;
+                    p.vy *= 0.98;
                     p.life -= p.decay;
 
                     if (p.life <= 0) {
                         particles.splice(i, 1);
                     }
                 }
+
+                // Update stars
+                for (let i = stars.length - 1; i >= 0; i--) {
+                    const s = stars[i];
+                    s.rotation += s.rotationSpeed;
+                    s.life -= 0.02;
+
+                    if (s.life <= 0) {
+                        stars.splice(i, 1);
+                    }
+                }
+
+                // Update rings
+                for (let i = rings.length - 1; i >= 0; i--) {
+                    const r = rings[i];
+                    r.radius += r.speed;
+                    r.life -= 0.015;
+
+                    if (r.radius >= r.maxRadius || r.life <= 0) {
+                        rings.splice(i, 1);
+                    }
+                }
+            }
+
+            function drawStar(x, y, size, rotation, alpha) {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(rotation);
+                
+                ctx.beginPath();
+                for (let i = 0; i < 5; i++) {
+                    const angle = (Math.PI * 2 * i / 5) - Math.PI / 2;
+                    const outerX = Math.cos(angle) * size;
+                    const outerY = Math.sin(angle) * size;
+                    const innerAngle = angle + Math.PI / 5;
+                    const innerX = Math.cos(innerAngle) * (size * 0.4);
+                    const innerY = Math.sin(innerAngle) * (size * 0.4);
+                    
+                    if (i === 0) {
+                        ctx.moveTo(outerX, outerY);
+                    } else {
+                        ctx.lineTo(outerX, outerY);
+                    }
+                    ctx.lineTo(innerX, innerY);
+                }
+                ctx.closePath();
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                ctx.fill();
+                
+                ctx.restore();
             }
 
             function draw(now) {
@@ -419,17 +568,28 @@
                 // Draw cannon
                 drawCannon();
 
+                // Draw rings
+                for (const r of rings) {
+                    const alpha = r.life * (1 - r.radius / r.maxRadius);
+                    ctx.strokeStyle = `rgba(${r.color[0]}, ${r.color[1]}, ${r.color[2]}, ${alpha})`;
+                    ctx.lineWidth = r.width;
+                    ctx.beginPath();
+                    ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
                 // Draw particles
                 for (const p of particles) {
                     const alpha = p.life;
                     
                     if (p.glow) {
-                        const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius * 3);
-                        gradient.addColorStop(0, `rgba(${p.color[0]}, ${p.color[1]}, ${p.color[2]}, ${alpha * 0.6})`);
+                        const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius * 4);
+                        gradient.addColorStop(0, `rgba(${p.color[0]}, ${p.color[1]}, ${p.color[2]}, ${alpha * 0.8})`);
+                        gradient.addColorStop(0.5, `rgba(${p.color[0]}, ${p.color[1]}, ${p.color[2]}, ${alpha * 0.4})`);
                         gradient.addColorStop(1, `rgba(${p.color[0]}, ${p.color[1]}, ${p.color[2]}, 0)`);
                         ctx.fillStyle = gradient;
                         ctx.beginPath();
-                        ctx.arc(p.x, p.y, p.radius * 3, 0, Math.PI * 2);
+                        ctx.arc(p.x, p.y, p.radius * 4, 0, Math.PI * 2);
                         ctx.fill();
                     }
 
@@ -439,13 +599,35 @@
                     ctx.fill();
                 }
 
+                // Draw stars
+                for (const s of stars) {
+                    const gradient = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.size * 2);
+                    gradient.addColorStop(0, `rgba(${s.color[0]}, ${s.color[1]}, ${s.color[2]}, ${s.life * 0.6})`);
+                    gradient.addColorStop(1, `rgba(${s.color[0]}, ${s.color[1]}, ${s.color[2]}, 0)`);
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(s.x, s.y, s.size * 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    drawStar(s.x, s.y, s.size, s.rotation, s.life);
+                }
+
                 // Draw balls with trail
                 for (const b of balls) {
-                    // Trail
+                    // Trail with rainbow gradient
                     for (let i = 0; i < b.trail.length; i++) {
                         const t = b.trail[i];
-                        const alpha = t.life * (i / b.trail.length) * b.life * 0.4;
-                        const size = b.radius * 0.6 * (i / b.trail.length);
+                        const progress = i / b.trail.length;
+                        const alpha = t.life * progress * b.life * 0.5;
+                        const size = b.radius * 0.7 * progress;
+                        
+                        const gradient = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, size * 2);
+                        gradient.addColorStop(0, `rgba(${b.color[0]}, ${b.color[1]}, ${b.color[2]}, ${alpha})`);
+                        gradient.addColorStop(1, `rgba(${b.color[0]}, ${b.color[1]}, ${b.color[2]}, 0)`);
+                        ctx.fillStyle = gradient;
+                        ctx.beginPath();
+                        ctx.arc(t.x, t.y, size * 2, 0, Math.PI * 2);
+                        ctx.fill();
                         
                         ctx.fillStyle = `rgba(${b.color[0]}, ${b.color[1]}, ${b.color[2]}, ${alpha})`;
                         ctx.beginPath();
@@ -453,13 +635,15 @@
                         ctx.fill();
                     }
 
-                    // Ball glow
-                    const glowGradient = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.radius * 2);
-                    glowGradient.addColorStop(0, `rgba(${b.color[0]}, ${b.color[1]}, ${b.color[2]}, ${b.life * 0.3})`);
+                    // Ball outer glow (pulsing)
+                    const pulseScale = 1 + Math.sin(b.pulsePhase) * 0.2;
+                    const glowGradient = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.radius * 3 * pulseScale);
+                    glowGradient.addColorStop(0, `rgba(${b.color[0]}, ${b.color[1]}, ${b.color[2]}, ${b.life * 0.4})`);
+                    glowGradient.addColorStop(0.5, `rgba(${b.color[0]}, ${b.color[1]}, ${b.color[2]}, ${b.life * 0.2})`);
                     glowGradient.addColorStop(1, `rgba(${b.color[0]}, ${b.color[1]}, ${b.color[2]}, 0)`);
                     ctx.fillStyle = glowGradient;
                     ctx.beginPath();
-                    ctx.arc(b.x, b.y, b.radius * 2, 0, Math.PI * 2);
+                    ctx.arc(b.x, b.y, b.radius * 3 * pulseScale, 0, Math.PI * 2);
                     ctx.fill();
 
                     // Ball
@@ -467,8 +651,9 @@
                     ctx.translate(b.x, b.y);
                     ctx.rotate(b.rotation);
 
-                    const gradient = ctx.createRadialGradient(-b.radius * 0.3, -b.radius * 0.3, 0, 0, 0, b.radius);
-                    gradient.addColorStop(0, `rgba(${b.color[0] + 50}, ${b.color[1] + 50}, ${b.color[2] + 50}, ${b.life})`);
+                    const gradient = ctx.createRadialGradient(-b.radius * 0.4, -b.radius * 0.4, 0, 0, 0, b.radius * 1.2);
+                    gradient.addColorStop(0, `rgba(255, 255, 255, ${b.life})`);
+                    gradient.addColorStop(0.3, `rgba(${b.color[0] + 80}, ${b.color[1] + 80}, ${b.color[2] + 80}, ${b.life})`);
                     gradient.addColorStop(1, `rgba(${b.color[0]}, ${b.color[1]}, ${b.color[2]}, ${b.life})`);
                     
                     ctx.fillStyle = gradient;
@@ -476,20 +661,36 @@
                     ctx.arc(0, 0, b.radius, 0, Math.PI * 2);
                     ctx.fill();
 
-                    // Ball border
-                    ctx.strokeStyle = `rgba(255, 255, 255, ${b.life * 0.5})`;
-                    ctx.lineWidth = 2;
+                    // Ball border (double)
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${b.life * 0.8})`;
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                    
+                    ctx.strokeStyle = `rgba(${b.color[0]}, ${b.color[1]}, ${b.color[2]}, ${b.life * 0.6})`;
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, b.radius - 4, 0, Math.PI * 2);
                     ctx.stroke();
 
-                    // Message text
-                    if (b.message && b.life > 0.5) {
+                    // Message text with shadow
+                    if (b.message && b.life > 0.3) {
+                        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                        ctx.shadowBlur = 4;
+                        ctx.shadowOffsetX = 2;
+                        ctx.shadowOffsetY = 2;
+                        
                         ctx.fillStyle = `rgba(255, 255, 255, ${b.life})`;
-                        ctx.font = 'bold 12px sans-serif';
+                        ctx.font = 'bold 14px sans-serif';
                         ctx.textAlign = 'center';
                         ctx.textBaseline = 'middle';
-                        const maxWidth = b.radius * 1.6;
+                        const maxWidth = b.radius * 1.7;
                         const text = b.message.length > 10 ? b.message.substring(0, 10) + '...' : b.message;
                         ctx.fillText(text, 0, 0, maxWidth);
+                        
+                        ctx.shadowColor = 'transparent';
+                        ctx.shadowBlur = 0;
+                        ctx.shadowOffsetX = 0;
+                        ctx.shadowOffsetY = 0;
                     }
 
                     ctx.restore();
