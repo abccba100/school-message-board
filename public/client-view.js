@@ -127,6 +127,10 @@ class Ball {
         // born pop timing
         this.bornAt = performance.now();
         
+        // 발사 애니메이션용
+        this.isLaunching = false;
+        this.launchProgress = 0;
+        
         this.createElement();
     }
 
@@ -199,6 +203,21 @@ class Ball {
     }
 
     update(dt, now) {
+        // 발사 애니메이션 처리
+        if (this.isLaunching) {
+            this.launchProgress += dt * 3; // 3초에 걸쳐 진행
+            
+            if (this.launchProgress >= 1.0) {
+                this.isLaunching = false;
+                this.launchProgress = 1.0;
+            }
+            
+            // 발사 중 강한 스쿼시 효과 (발사 방향으로 늘어남)
+            const stretchAmount = (1.0 - this.launchProgress) * 0.6;
+            this.squishX = stretchAmount;
+            this.squishY = -stretchAmount * 0.5;
+        }
+        
         // sticky drag (frame-rate independent)
         const drag = Math.exp(-WORLD.dragPerSecond * dt);
         this.vx *= drag;
@@ -506,53 +525,41 @@ function animate(now) {
     animationId = requestAnimationFrame(animate);
 }
 
-// Add new ball - 대포 위치에서 시작!
+// Add new ball - 대포에서 발사!
 function addBall(message, isNew = false) {
-    let startX, startY;
+    // 대포 위치 (왼쪽 아래 고정)
+    const cannonX = 120;
+    const cannonY = containerHeight - 80;
+    
+    const ball = new Ball(message.id, message.content, cannonX, cannonY);
     
     if (isNew) {
-        // 새 메시지는 대포 위치에서 시작
-        if (window.cannonEffect && window.cannonEffect.getCannonPosition) {
-            const cannonPos = window.cannonEffect.getCannonPosition();
-            startX = cannonPos.x;
-            startY = cannonPos.y;
-            console.log('🎈 Creating ball at cannon position:', startX, startY);
-        } else {
-            // fallback: 왼쪽 아래
-            startX = 150;
-            startY = containerHeight - 100;
-            console.log('⚠️ Cannon not available, using fallback position');
-        }
-    } else {
-        // 기존 메시지는 랜덤 위치
-        startX = Math.random() * containerWidth;
-        startY = Math.random() * containerHeight;
-    }
-    
-    const ball = new Ball(message.id, message.content, startX, startY);
-    
-    if (isNew) {
-        // 대포에서 발사되는 듯한 초기 속도 (오른쪽 위 방향)
-        const angle = -45 * Math.PI / 180; // 45도 위쪽
-        const speed = 300 + Math.random() * 100; // 빠른 초기 속도
+        // 발사 애니메이션 플래그
+        ball.isLaunching = true;
+        ball.launchProgress = 0;
+        
+        // 대포에서 발사되는 듯한 강한 초기 속도 (45도 오른쪽 위)
+        const angle = -45 * Math.PI / 180;
+        const speed = 400 + Math.random() * 100; // 매우 빠른 발사
         ball.vx = Math.cos(angle) * speed;
         ball.vy = Math.sin(angle) * speed;
         
-        console.log('🚀 Ball velocity:', ball.vx, ball.vy);
+        // 발사 방향으로 회전 킥
+        ball.rotV = (Math.random() - 0.5) * 40;
         
-        // Push away existing balls
+        // Push away existing balls (충격파 효과)
         balls.forEach(existingBall => {
-            const dx = existingBall.x - startX;
-            const dy = existingBall.y - startY;
+            const dx = existingBall.x - cannonX;
+            const dy = existingBall.y - cannonY;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
-            if (distance < 240 && distance > 0) {
-                const force = 52 / Math.max(90, distance);
+            if (distance < 300 && distance > 0) {
+                const force = 80 / Math.max(100, distance);
                 const fx = (dx / distance) * force;
                 const fy = (dy / distance) * force;
                 existingBall.applyForce(fx, fy);
-                existingBall.squishX += clamp((dx / distance) * 0.06, -0.08, 0.08);
-                existingBall.squishY += clamp((dy / distance) * 0.06, -0.08, 0.08);
+                existingBall.squishX += clamp((dx / distance) * 0.1, -0.12, 0.12);
+                existingBall.squishY += clamp((dy / distance) * 0.1, -0.12, 0.12);
             }
         });
     }
@@ -584,21 +591,15 @@ socket.on('connect_error', (error) => {
 });
 
 socket.on('newMessage', (message) => {
-    console.log('📩 New message received!', message);
-    
     // 🎉 대포 발사!
-    if (window.cannonEffect && window.cannonEffect.fire) {
-        console.log('🔫 Firing cannon!');
+    if (window.cannonEffect) {
         window.cannonEffect.fire();
-    } else {
-        console.error('❌ Cannon effect not available!');
     }
     
-    // 약간의 딜레이 후 메시지 공 추가 (대포에서 발사되는 느낌)
+    // 동시에 메시지 공 추가 (대포에서 튀어나오는 타이밍)
     setTimeout(() => {
-        console.log('🎈 Adding ball...');
         addBall(message, true);
-    }, 150);
+    }, 50);
 });
 
 socket.on('disconnect', () => {
@@ -619,10 +620,11 @@ async function loadInitialMessages() {
         
         // Add all messages with random positions
         messages.forEach(msg => {
-            addBall(msg, false);
+            const x = Math.random() * containerWidth;
+            const y = Math.random() * containerHeight;
+            const ball = new Ball(msg.id, msg.content, x, y);
+            balls.push(ball);
         });
-        
-        console.log('✅ Loaded', messages.length, 'initial messages');
     } catch (error) {
         console.error('Error loading messages:', error);
         showStatus('메시지 로드 실패', 'error');
