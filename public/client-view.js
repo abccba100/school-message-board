@@ -130,11 +130,6 @@ class Ball {
         // 발사 애니메이션용
         this.isLaunching = false;
         this.launchProgress = 0;
-
-        this.isLaunching = false;
-        this.launchT = 0;
-        this.launchFrom = null;
-        this.launchTo = null;
         
         this.createElement();
     }
@@ -208,63 +203,21 @@ class Ball {
     }
 
     update(dt, now) {
-        // =====================================
-        // 🚀 발사 애니메이션 처리 (슬라임 보호)
-        // =====================================
+        // 발사 애니메이션 처리
         if (this.isLaunching) {
-            this.launchProgress += dt * 2.5;
-
-            const t = Math.min(this.launchProgress, 1);
-            const e = 1 - Math.pow(1 - t, 3); // easeOutCubic
-
-            // 위치를 "비행 경로"로 강제 오버라이드
-            this.x =
-                this.launchFrom.x +
-                (this.launchTo.x - this.launchFrom.x) * e;
-            this.y =
-                this.launchFrom.y +
-                (this.launchTo.y - this.launchFrom.y) * e;
-
-            // 발사 중 강한 스쿼시 (기존 감성 유지)
-            const stretchAmount = (1.0 - t) * 0.7;
-            this.squishX = stretchAmount;
-            this.squishY = -stretchAmount * 0.5;
-
-            // ✨ 비행 트레일 파티클
-            window.launchEffect?.trail(this.x, this.y);
-
-            // 발사 종료
-            if (t >= 1.0) {
+            this.launchProgress += dt * 2.5; // 발사 애니메이션 속도
+            
+            if (this.launchProgress >= 1.0) {
                 this.isLaunching = false;
                 this.launchProgress = 1.0;
-
-                // ✨ 도착 팝 이펙트
-                window.launchEffect?.pop(this.x, this.y);
-
-                // 기존 슬라임 월드로 자연스럽게 진입
-                this.vx = (Math.random() - 0.5) * 140;
-                this.vy = (Math.random() - 0.5) * 140;
             }
-
-            // DOM 업데이트만 수행 (물리/충돌 완전 스킵)
-            if (this.element) {
-                const tx = this.x - this.radius;
-                const ty = this.y - this.radius;
-                this.element.style.transform =
-                    `translate3d(${tx}px, ${ty}px, 0)
-                    rotate(${this.rot}deg)
-                    scale(${this.sx}, ${this.sy})`;
-            }
-
-            return; // ⭐⭐⭐ 핵심: 슬라임 물리 진입 차단
+            
+            // 발사 중 강한 스쿼시 효과 (발사 방향으로 늘어남)
+            const stretchAmount = (1.0 - this.launchProgress) * 0.7;
+            this.squishX = stretchAmount;
+            this.squishY = -stretchAmount * 0.5;
         }
-
-        // =====================================
-        // ⬇⬇⬇⬇⬇⬇⬇⬇⬇⬇⬇⬇⬇⬇⬇⬇⬇⬇
-        // ⬇⬇⬇⬇ 기존 슬라임 물리 코드 ⬇⬇⬇⬇
-        // ⬇⬇⬇⬇ (네가 올린 코드 그대로) ⬇⬇⬇⬇
-        // =====================================
-
+        
         // sticky drag (frame-rate independent)
         const drag = Math.exp(-WORLD.dragPerSecond * dt);
         this.vx *= drag;
@@ -274,14 +227,8 @@ class Ball {
         if (!prefersReducedMotion) {
             this.phase += this.phaseSpeed * dt * WORLD.noiseSpeed;
             this.phase2 += (this.phaseSpeed * 0.83) * dt * WORLD.noiseSpeed;
-            const ax =
-                (Math.sin(this.phase) + Math.sin(this.phase2 * 0.9)) *
-                0.5 *
-                WORLD.noiseAmp;
-            const ay =
-                (Math.cos(this.phase2) + Math.cos(this.phase * 0.85)) *
-                0.5 *
-                WORLD.noiseAmp;
+            const ax = (Math.sin(this.phase) + Math.sin(this.phase2 * 0.9)) * 0.5 * WORLD.noiseAmp;
+            const ay = (Math.cos(this.phase2) + Math.cos(this.phase * 0.85)) * 0.5 * WORLD.noiseAmp;
             this.vx += ax * dt;
             this.vy += ay * dt;
         }
@@ -302,23 +249,23 @@ class Ball {
         this.applyBoundary(dt);
 
         // subtle breathing (cheap, 1D)
-        const t2 = now * 0.001;
-        const breath = prefersReducedMotion
-            ? 0
-            : Math.sin(t2 * 0.9 + this.phase2) * 0.02;
+        const t = now * 0.001;
+        const breath = prefersReducedMotion ? 0 : (Math.sin(t * 0.9 + this.phase2) * 0.02);
         const targetSx = 1 + breath;
         const targetSy = 1 - breath;
 
-        // micro pulse per ball
+        // micro pulse per ball (very subtle, different phase)
         let pulse = 0;
         if (!prefersReducedMotion) {
-            this.pulseP += dt * (0.6 + this.phaseSpeed * 0.35);
+            this.pulseP += dt * (0.6 + (this.phaseSpeed * 0.35));
             pulse = Math.sin(this.pulseP) * 0.012;
         }
 
-        const sxTarget = targetSx + pulse + this.squishX;
-        const syTarget = targetSy - pulse + this.squishY;
+        // squish targets blend
+        const sxTarget = (targetSx + pulse) + this.squishX;
+        const syTarget = (targetSy - pulse) + this.squishY;
 
+        // springy scale back (slime)
         const sk = 26;
         const sd = 11;
         this.svx += (sxTarget - this.sx) * sk * dt;
@@ -338,17 +285,13 @@ class Ball {
         this.rot += this.rotV * dt;
         this.rot = clamp(this.rot, -10, 10);
 
-        // update DOM
+        // update DOM (transform only)
         if (this.element) {
-            const tx = this.x - this.radius;
-            const ty = this.y - this.radius;
-            this.element.style.transform =
-                `translate3d(${tx}px, ${ty}px, 0)
-                rotate(${this.rot}deg)
-                scale(${this.sx}, ${this.sy})`;
+            const tx = (this.x - this.radius);
+            const ty = (this.y - this.radius);
+            this.element.style.transform = `translate3d(${tx}px, ${ty}px, 0) rotate(${this.rot}deg) scale(${this.sx}, ${this.sy})`;
         }
     }
-
 
     applyBoundary(dt) {
         if (containerWidth <= 0 || containerHeight <= 0) return;
@@ -584,56 +527,45 @@ function animate(now) {
 
 // Add new ball - 왼쪽 아래에서 발사!
 function addBall(message, isNew = false) {
-    // 발사 지점 (왼쪽 아래)
+    // 발사 지점 (왼쪽 아래 끝)
     const launchX = 80;
     const launchY = containerHeight - 80;
-
+    
     const ball = new Ball(message.id, message.content, launchX, launchY);
-
+    
     if (isNew) {
-        // ===============================
-        // 🚀 발사 상태 설정
-        // ===============================
+        // 발사 애니메이션 플래그
         ball.isLaunching = true;
         ball.launchProgress = 0;
-
-        ball.launchFrom = {
-            x: launchX,
-            y: launchY
-        };
-
-        // 🎯 중앙 근처까지 비행 (살짝 랜덤)
-        ball.launchTo = {
-            x: containerWidth * 0.5 + (Math.random() - 0.5) * 80,
-            y: containerHeight * 0.45 + (Math.random() - 0.5) * 60
-        };
-
-        // 발사 시 회전 킥 (기존 감성 유지)
+        
+        // 오른쪽 위로 강력하게 발사 (45도)
+        const angle = -45 * Math.PI / 180;
+        const speed = 450 + Math.random() * 100; // 매우 빠른 발사
+        ball.vx = Math.cos(angle) * speed;
+        ball.vy = Math.sin(angle) * speed;
+        
+        // 발사 방향으로 회전 킥
         ball.rotV = (Math.random() - 0.5) * 50;
-
-        // ===============================
-        // 💥 기존 공 밀어내는 충격파 효과 (유지)
-        // ===============================
+        
+        // Push away existing balls (충격파 효과)
         balls.forEach(existingBall => {
             const dx = existingBall.x - launchX;
             const dy = existingBall.y - launchY;
             const distance = Math.sqrt(dx * dx + dy * dy);
-
+            
             if (distance < 350 && distance > 0) {
                 const force = 100 / Math.max(120, distance);
                 const fx = (dx / distance) * force;
                 const fy = (dy / distance) * force;
-
                 existingBall.applyForce(fx, fy);
                 existingBall.squishX += clamp((dx / distance) * 0.15, -0.15, 0.15);
                 existingBall.squishY += clamp((dy / distance) * 0.15, -0.15, 0.15);
             }
         });
     }
-
+    
     balls.push(ball);
 }
-
 
 // Initialize
 updateContainerSize();
