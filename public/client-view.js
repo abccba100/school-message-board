@@ -205,7 +205,7 @@ class Ball {
     update(dt, now) {
         // 발사 애니메이션 처리
         if (this.isLaunching) {
-            this.launchProgress += dt * 3; // 3초에 걸쳐 진행
+            this.launchProgress += dt * 2.5; // 발사 애니메이션 속도
             
             if (this.launchProgress >= 1.0) {
                 this.isLaunching = false;
@@ -213,7 +213,7 @@ class Ball {
             }
             
             // 발사 중 강한 스쿼시 효과 (발사 방향으로 늘어남)
-            const stretchAmount = (1.0 - this.launchProgress) * 0.6;
+            const stretchAmount = (1.0 - this.launchProgress) * 0.7;
             this.squishX = stretchAmount;
             this.squishY = -stretchAmount * 0.5;
         }
@@ -525,41 +525,41 @@ function animate(now) {
     animationId = requestAnimationFrame(animate);
 }
 
-// Add new ball - 대포에서 발사!
+// Add new ball - 왼쪽 아래에서 발사!
 function addBall(message, isNew = false) {
-    // 대포 위치 (왼쪽 아래 고정)
-    const cannonX = 120;
-    const cannonY = containerHeight - 80;
+    // 발사 지점 (왼쪽 아래 끝)
+    const launchX = 80;
+    const launchY = containerHeight - 80;
     
-    const ball = new Ball(message.id, message.content, cannonX, cannonY);
+    const ball = new Ball(message.id, message.content, launchX, launchY);
     
     if (isNew) {
         // 발사 애니메이션 플래그
         ball.isLaunching = true;
         ball.launchProgress = 0;
         
-        // 대포에서 발사되는 듯한 강한 초기 속도 (45도 오른쪽 위)
+        // 오른쪽 위로 강력하게 발사 (45도)
         const angle = -45 * Math.PI / 180;
-        const speed = 400 + Math.random() * 100; // 매우 빠른 발사
+        const speed = 450 + Math.random() * 100; // 매우 빠른 발사
         ball.vx = Math.cos(angle) * speed;
         ball.vy = Math.sin(angle) * speed;
         
         // 발사 방향으로 회전 킥
-        ball.rotV = (Math.random() - 0.5) * 40;
+        ball.rotV = (Math.random() - 0.5) * 50;
         
         // Push away existing balls (충격파 효과)
         balls.forEach(existingBall => {
-            const dx = existingBall.x - cannonX;
-            const dy = existingBall.y - cannonY;
+            const dx = existingBall.x - launchX;
+            const dy = existingBall.y - launchY;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
-            if (distance < 300 && distance > 0) {
-                const force = 80 / Math.max(100, distance);
+            if (distance < 350 && distance > 0) {
+                const force = 100 / Math.max(120, distance);
                 const fx = (dx / distance) * force;
                 const fy = (dy / distance) * force;
                 existingBall.applyForce(fx, fy);
-                existingBall.squishX += clamp((dx / distance) * 0.1, -0.12, 0.12);
-                existingBall.squishY += clamp((dy / distance) * 0.1, -0.12, 0.12);
+                existingBall.squishX += clamp((dx / distance) * 0.15, -0.15, 0.15);
+                existingBall.squishY += clamp((dy / distance) * 0.15, -0.15, 0.15);
             }
         });
     }
@@ -591,15 +591,13 @@ socket.on('connect_error', (error) => {
 });
 
 socket.on('newMessage', (message) => {
-    // 🎉 대포 발사!
-    if (window.cannonEffect) {
-        window.cannonEffect.fire();
+    // 🎉 발사 효과!
+    if (window.launchEffect) {
+        window.launchEffect.fire();
     }
     
-    // 동시에 메시지 공 추가 (대포에서 튀어나오는 타이밍)
-    setTimeout(() => {
-        addBall(message, true);
-    }, 50);
+    // 동시에 메시지 공 추가 (발사 지점에서 튀어나옴)
+    addBall(message, true);
 });
 
 socket.on('disconnect', () => {
