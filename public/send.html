@@ -216,7 +216,8 @@
                 x: 0,
                 y: 0,
                 recoil: 0,
-                angle: -60 * Math.PI / 180
+                angle: -135 * Math.PI / 180,  // 오른쪽 위로 발사
+                scale: 1.5  // 1.5배 크기
             };
 
             function resize() {
@@ -228,18 +229,19 @@
                 canvas.style.height = h + 'px';
                 ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 
-                cannon.x = w * 0.15;
-                cannon.y = h - 80;
+                // 오른쪽 위 위치
+                cannon.x = w - 120;
+                cannon.y = 120;
             }
 
             function createBall(message) {
                 const color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
-                const angle = rnd(-70, -50) * Math.PI / 180;
+                const angle = rnd(-145, -125) * Math.PI / 180;  // 오른쪽 위 방향
                 const speed = rnd(12, 18);
                 
                 return {
-                    x: cannon.x + Math.cos(cannon.angle) * 60,
-                    y: cannon.y + Math.sin(cannon.angle) * 60,
+                    x: cannon.x + Math.cos(cannon.angle) * 90 * cannon.scale,
+                    y: cannon.y + Math.sin(cannon.angle) * 90 * cannon.scale,
                     vx: Math.cos(angle) * speed,
                     vy: Math.sin(angle) * speed,
                     radius: rnd(25, 40),
@@ -261,8 +263,8 @@
                     const color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
                     
                     particles.push({
-                        x: cannon.x + Math.cos(cannon.angle) * 50,
-                        y: cannon.y + Math.sin(cannon.angle) * 50,
+                        x: cannon.x + Math.cos(cannon.angle) * 75 * cannon.scale,
+                        y: cannon.y + Math.sin(cannon.angle) * 75 * cannon.scale,
                         vx: Math.cos(angle) * speed,
                         vy: Math.sin(angle) * speed,
                         radius: rnd(3, 7),
@@ -296,7 +298,7 @@
             }
 
             function fire(message) {
-                cannon.recoil = 15;
+                cannon.recoil = 15 * cannon.scale;
                 createExplosion();
                 
                 setTimeout(() => {
@@ -309,12 +311,15 @@
                 ctx.translate(cannon.x, cannon.y);
                 
                 if (cannon.recoil > 0) {
-                    ctx.translate(-cannon.recoil, 0);
+                    const recoilX = Math.cos(cannon.angle) * cannon.recoil;
+                    const recoilY = Math.sin(cannon.angle) * cannon.recoil;
+                    ctx.translate(recoilX, recoilY);
                     cannon.recoil *= 0.85;
                     if (cannon.recoil < 0.1) cannon.recoil = 0;
                 }
 
                 ctx.rotate(cannon.angle);
+                ctx.scale(cannon.scale, cannon.scale);
 
                 // Cannon barrel
                 ctx.fillStyle = '#444';
@@ -334,11 +339,15 @@
                 ctx.restore();
 
                 // Cannon base
+                ctx.save();
+                ctx.translate(cannon.x, cannon.y);
+                ctx.scale(cannon.scale, cannon.scale);
+                
                 ctx.fillStyle = '#555';
                 ctx.strokeStyle = '#222';
                 ctx.lineWidth = 3;
                 ctx.beginPath();
-                ctx.arc(cannon.x, cannon.y, 20, 0, Math.PI * 2);
+                ctx.arc(0, 0, 20, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
 
@@ -346,12 +355,14 @@
                 ctx.fillStyle = '#777';
                 for (let i = 0; i < 6; i++) {
                     const angle = (Math.PI * 2 * i / 6);
-                    const wx = cannon.x + Math.cos(angle) * 12;
-                    const wy = cannon.y + Math.sin(angle) * 12;
+                    const wx = Math.cos(angle) * 12;
+                    const wy = Math.sin(angle) * 12;
                     ctx.beginPath();
                     ctx.arc(wx, wy, 2, 0, Math.PI * 2);
                     ctx.fill();
                 }
+                
+                ctx.restore();
             }
 
             function update(dt) {
@@ -373,12 +384,12 @@
                         createSparkles(b.x, b.y, 2);
                     }
 
-                    // Fade out at top
-                    if (b.y < h * 0.2) {
+                    // Fade out at edges
+                    if (b.y < h * 0.1 || b.x > w * 0.9 || b.x < w * 0.1) {
                         b.life -= 0.015;
                     }
 
-                    if (b.life <= 0 || b.y > h + 100) {
+                    if (b.life <= 0 || b.y > h + 100 || b.x < -100 || b.x > w + 100) {
                         balls.splice(i, 1);
                     }
                 }
