@@ -1,296 +1,541 @@
 <!DOCTYPE html>
 <html lang="ko" style="color-scheme: light only; background-color: #ffd7e2; color: #333333;">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>말랑말랑 메시지 보드</title>
-
-<style>
-html, body {
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    color-scheme: light only !important;
-    background: linear-gradient(135deg, #ffd7e2 0%, #ffe8c7 35%, #e0f2ff 75%, #e3dcff 100%);
-    color: #333;
-    font-family: "Apple SD Gothic Neo", "Pretendard", sans-serif;
-}
-
-#ballContainer {
-    position: fixed;
-    inset: 0;
-}
-
-.message-ball {
-    position: absolute;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-    box-sizing: border-box;
-    border-radius: 50%;
-    border: 2px solid rgba(0,0,0,0.08);
-    text-align: center;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
-    user-select: none;
-    will-change: transform;
-}
-
-.bg-canvas,
-.effect-canvas {
-    position: fixed;
-    inset: 0;
-    width: 100vw;
-    height: 100vh;
-    pointer-events: none;
-}
-
-.bg-canvas { z-index: -2; }
-.effect-canvas { z-index: 999; }
-
-#status {
-    position: fixed;
-    bottom: 16px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(255,255,255,0.9);
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 12px;
-    display: none;
-}
-</style>
-</head>
-
-<body>
-<canvas id="bgCanvas" class="bg-canvas"></canvas>
-<canvas id="effectCanvas" class="effect-canvas"></canvas>
-<div id="ballContainer"></div>
-<div id="status"></div>
-
-<script src="/socket.io/socket.io.js"></script>
-<script src="cannon-effect.js"></script>
-<script src="client-view.js"></script>
-
-<script>
-/* =====================================================
-   GLOBAL UTIL
-===================================================== */
-const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
-const rnd = (a,b)=>a+Math.random()*(b-a);
-
-/* =====================================================
-   CONTAINER
-===================================================== */
-const ballContainer = document.getElementById("ballContainer");
-let containerWidth = innerWidth;
-let containerHeight = innerHeight;
-
-window.addEventListener("resize", ()=>{
-    containerWidth = innerWidth;
-    containerHeight = innerHeight;
-});
-
-/* =====================================================
-   CANNON CONFIG
-===================================================== */
-const CANNON = {
-    x: 150,
-    y: ()=>containerHeight-120,
-    angle: -45 * Math.PI/180
-};
-
-/* =====================================================
-   BALL PHYSICS
-===================================================== */
-const WORLD = {
-    drag: 0.96,
-    noise: 20,
-    maxSpeed: 520,
-    collideK: 50,
-    collideD: 12
-};
-
-class Ball {
-    constructor(id, text, x, y){
-        this.id=id;
-        this.text=text;
-        this.x=x;
-        this.y=y;
-        this.vx=0;
-        this.vy=0;
-        this.radius=clamp(text.length*3+40,40,100);
-        this.mass=this.radius/60;
-
-        this.sx=0.6;
-        this.sy=1.6;
-        this.svx=0;
-        this.svy=0;
-        this.rot=rnd(-8,8);
-        this.rotV=rnd(-60,60);
-        this.born=performance.now();
-
-        this.el=document.createElement("div");
-        this.el.className="message-ball";
-        this.el.textContent=text;
-        this.el.style.width=this.el.style.height=this.radius*2+"px";
-
-        const h=rnd(0,360);
-        this.el.style.background=`radial-gradient(circle at 30% 30%, hsl(${h} 70% 88%), hsl(${h} 70% 72%))`;
-        ballContainer.appendChild(this.el);
-    }
-
-    update(dt,now){
-        this.vx*=WORLD.drag;
-        this.vy*=WORLD.drag;
-
-        this.vx+=Math.sin(now*0.001+this.id)*WORLD.noise*dt;
-        this.vy+=Math.cos(now*0.001+this.id)*WORLD.noise*dt;
-
-        const sp=Math.hypot(this.vx,this.vy);
-        if(sp>WORLD.maxSpeed){
-            const k=WORLD.maxSpeed/sp;
-            this.vx*=k; this.vy*=k;
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
+    <meta name="supported-color-schemes" content="light">
+    <meta name="theme-color" content="#ffd7e2" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#ffd7e2" media="(prefers-color-scheme: dark)">
+    <title>말랑말랑 메시지 보드</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        html {
+            color-scheme: light only !important;
+            background-color: #ffd7e2 !important;
+            color: #333333 !important;
+            -webkit-color-scheme: light only !important;
+        }
+        body {
+            background:
+                radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.85) 0, rgba(255, 255, 255, 0) 55%),
+                radial-gradient(circle at 100% 100%, rgba(255, 255, 255, 0.9) 0, rgba(255, 255, 255, 0) 55%),
+                linear-gradient(135deg, #ffd7e2 0%, #ffe8c7 35%, #e0f2ff 75%, #e3dcff 100%) !important;
+            background-color: #ffd7e2 !important;
+            color: #333333 !important;
         }
 
-        this.x+=this.vx*dt;
-        this.y+=this.vy*dt;
+        .bg-canvas {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -3;
+            pointer-events: none;
+        }
 
-        if(this.x<this.radius){this.x=this.radius;this.vx*=-0.6;}
-        if(this.x>containerWidth-this.radius){this.x=containerWidth-this.radius;this.vx*=-0.6;}
-        if(this.y<this.radius){this.y=this.radius;this.vy*=-0.6;}
-        if(this.y>containerHeight-this.radius){this.y=containerHeight-this.radius;this.vy*=-0.6;}
+        #effectCanvas {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 10000;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="view-page" style="background: linear-gradient(135deg, #ffd7e2 0%, #ffe8c7 35%, #e0f2ff 75%, #e3dcff 100%); background-color: #ffd7e2; color: #333333;">
+    <canvas id="bgCanvas" class="bg-canvas" aria-hidden="true"></canvas>
+    <canvas id="effectCanvas" aria-hidden="true"></canvas>
+    <div class="bg-orbs" aria-hidden="true">
+        <span class="orb o1"></span>
+        <span class="orb o2"></span>
+        <span class="orb o3"></span>
+        <span class="orb o4"></span>
+    </div>
+    <div class="view-hero" aria-label="페이지 안내">
+        <div class="hero-kicker">DSM 졸업 축하 메시지</div>
+        <div class="hero-title">여러분의 축하가 모이고 있어요</div>
+        <p class="hero-subtitle">떠다니는 메시지 공을 바라보며 함께 축하해요.</p>
+    </div>
+    <div id="ballContainer"></div>
+    <div id="status"></div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="client-view.js"></script>
+    <script>
+        // Background animation
+        (() => {
+            const canvas = document.getElementById('bgCanvas');
+            if (!canvas) return;
 
-        const bornT=clamp((now-this.born)/350,0,1);
-        const pop=Math.sin(bornT*Math.PI)*0.6;
-        const tx=1+pop, ty=1-pop;
+            const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
+            if (!ctx) return;
 
-        this.svx+=(tx-this.sx)*30*dt;
-        this.svy+=(ty-this.sy)*30*dt;
-        this.svx*=Math.exp(-10*dt);
-        this.svy*=Math.exp(-10*dt);
-        this.sx+=this.svx*dt;
-        this.sy+=this.svy*dt;
+            const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const DPR = Math.min(2, window.devicePixelRatio || 1);
 
-        this.rot+=this.rotV*dt;
-        this.rotV*=Math.exp(-4*dt);
+            let w = 0, h = 0;
+            let rafId = 0;
+            let last = performance.now();
 
-        this.el.style.transform=
-            `translate(${this.x-this.radius}px,${this.y-this.radius}px)
-             rotate(${this.rot}deg)
-             scale(${this.sx},${this.sy})`;
-    }
-}
+            const rnd = (a, b) => a + Math.random() * (b - a);
+            const palette = [
+                [255, 156, 200],
+                [255, 206, 150],
+                [165, 222, 255],
+                [215, 198, 255],
+                [202, 255, 220],
+            ];
 
-/* =====================================================
-   BALLS
-===================================================== */
-let balls=[];
+            const blobs = Array.from({ length: 16 }, () => {
+                const c = palette[(Math.random() * palette.length) | 0];
+                const size = rnd(120, 320);
+                return {
+                    x: rnd(0, 1),
+                    y: rnd(0, 1),
+                    r: size,
+                    a: rnd(0.045, 0.11),
+                    vx: rnd(-0.012, 0.012),
+                    vy: rnd(-0.012, 0.012),
+                    p: rnd(0, Math.PI * 2),
+                    ps: rnd(0.07, 0.14),
+                    c,
+                };
+            });
 
-function addBall(message,isNew){
-    const x=CANNON.x;
-    const y=CANNON.y();
-    const b=new Ball(message.id,message.content,x,y);
-
-    if(isNew){
-        const speed=520+rnd(0,200);
-        b.vx=Math.cos(CANNON.angle)*speed;
-        b.vy=Math.sin(CANNON.angle)*speed;
-        b.rotV+=rnd(-200,200);
-
-        balls.forEach(o=>{
-            const dx=o.x-x, dy=o.y-y;
-            const d=Math.hypot(dx,dy);
-            if(d<260 && d>0){
-                const f=120/d;
-                o.vx+=dx/d*f;
-                o.vy+=dy/d*f;
+            function resize() {
+                w = Math.max(1, window.innerWidth);
+                h = Math.max(1, window.innerHeight);
+                canvas.width = Math.floor(w * DPR);
+                canvas.height = Math.floor(h * DPR);
+                canvas.style.width = w + 'px';
+                canvas.style.height = h + 'px';
+                ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
             }
-        });
 
-        cannonFire();
-    }
-    balls.push(b);
-}
+            function draw(now) {
+                const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000));
+                last = now;
 
-/* =====================================================
-   MAIN LOOP
-===================================================== */
-let last=performance.now();
-function loop(now){
-    const dt=Math.min(0.05,(now-last)/1000);
-    last=now;
+                ctx.clearRect(0, 0, w, h);
+                ctx.globalCompositeOperation = 'lighter';
 
-    balls.forEach(b=>b.update(dt,now));
-    requestAnimationFrame(loop);
-}
-requestAnimationFrame(loop);
+                for (let i = 0; i < blobs.length; i++) {
+                    const b = blobs[i];
+                    b.p += b.ps * dt;
 
-/* =====================================================
-   SOCKET
-===================================================== */
-const socket=io();
+                    if (!prefersReduced) {
+                        b.x += b.vx * dt;
+                        b.y += b.vy * dt;
+                    }
 
-socket.on("connect", async ()=>{
-    const res=await fetch("/api/messages");
-    const msgs=await res.json();
-    msgs.forEach(m=>{
-        const b=new Ball(m.id,m.content,rnd(0,containerWidth),rnd(0,containerHeight));
-        balls.push(b);
-    });
-});
+                    if (b.x < -0.15) b.x = 1.15;
+                    if (b.x > 1.15) b.x = -0.15;
+                    if (b.y < -0.15) b.y = 1.15;
+                    if (b.y > 1.15) b.y = -0.15;
 
-socket.on("newMessage", msg=>{
-    setTimeout(()=>addBall(msg,true),120);
-});
+                    const px = b.x * w + Math.sin(b.p) * 20;
+                    const py = b.y * h + Math.cos(b.p * 0.9) * 18;
+                    const rr = b.r * (0.92 + Math.sin(b.p * 0.75) * 0.08);
 
-/* =====================================================
-   CANNON EFFECT (MAX)
-===================================================== */
-const effectCanvas=document.getElementById("effectCanvas");
-const ctx=effectCanvas.getContext("2d");
-function resizeEffect(){
-    effectCanvas.width=innerWidth;
-    effectCanvas.height=innerHeight;
-}
-resizeEffect(); addEventListener("resize",resizeEffect);
+                    const g = ctx.createRadialGradient(px - rr * 0.2, py - rr * 0.18, rr * 0.12, px, py, rr);
+                    g.addColorStop(0, `rgba(${b.c[0]},${b.c[1]},${b.c[2]},${b.a})`);
+                    g.addColorStop(0.7, `rgba(${b.c[0]},${b.c[1]},${b.c[2]},${b.a * 0.5})`);
+                    g.addColorStop(1, `rgba(${b.c[0]},${b.c[1]},${b.c[2]},0)`);
 
-let particles=[];
-function cannonFire(){
-    const sx=CANNON.x;
-    const sy=CANNON.y();
+                    ctx.fillStyle = g;
+                    ctx.beginPath();
+                    ctx.arc(px, py, rr, 0, Math.PI * 2);
+                    ctx.fill();
+                }
 
-    for(let i=0;i<120;i++){
-        const a=rnd(-Math.PI,Math.PI);
-        const s=rnd(120,520);
-        particles.push({
-            x:sx,y:sy,
-            vx:Math.cos(a)*s,
-            vy:Math.sin(a)*s,
-            life:1,
-            r:rnd(2,6)
-        });
-    }
-}
+                ctx.globalCompositeOperation = 'source-over';
+                rafId = requestAnimationFrame(draw);
+            }
 
-function drawEffects(){
-    ctx.clearRect(0,0,effectCanvas.width,effectCanvas.height);
-    particles.forEach(p=>{
-        p.x+=p.vx*0.016;
-        p.y+=p.vy*0.016;
-        p.vy+=420*0.016;
-        p.life-=0.03;
-        ctx.fillStyle=`rgba(255,180,220,${p.life})`;
-        ctx.beginPath();
-        ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
-        ctx.fill();
-    });
-    particles=particles.filter(p=>p.life>0);
-    requestAnimationFrame(drawEffects);
-}
-drawEffects();
-</script>
+            resize();
+            window.addEventListener('resize', resize, { passive: true });
+            rafId = requestAnimationFrame(draw);
+        })();
+    </script>
+    <script>
+        // Cannon Effect (separate script for view page)
+        (() => {
+            const canvas = document.getElementById('effectCanvas');
+            if (!canvas) {
+                console.error('effectCanvas not found!');
+                return;
+            }
+
+            const ctx = canvas.getContext('2d', { alpha: true });
+            if (!ctx) {
+                console.error('Canvas context not available!');
+                return;
+            }
+
+            const DPR = Math.min(2, window.devicePixelRatio || 1);
+            let w = 0, h = 0;
+            let animationRunning = false;
+            let rafId = 0;
+            let last = performance.now();
+
+            const rnd = (a, b) => a + Math.random() * (b - a);
+
+            const colorPalette = [
+                [255, 107, 178],
+                [255, 165, 0],
+                [138, 203, 255],
+                [186, 148, 255],
+                [255, 223, 0],
+                [100, 255, 150],
+                [255, 100, 100],
+                [100, 200, 255],
+            ];
+
+            let particles = [];
+            let stars = [];
+            let rings = [];
+            let showCannon = false;
+            let cannonHideTime = 0;
+            
+            const cannon = {
+                x: 0,
+                y: 0,
+                recoil: 0,
+                angle: -45 * Math.PI / 180,
+                scale: 1.5
+            };
+
+            function resize() {
+                w = Math.max(1, window.innerWidth);
+                h = Math.max(1, window.innerHeight);
+                canvas.width = Math.floor(w * DPR);
+                canvas.height = Math.floor(h * DPR);
+                canvas.style.width = w + 'px';
+                canvas.style.height = h + 'px';
+                ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+                cannon.x = 150;
+                cannon.y = h - 100;
+                
+                console.log('Cannon position:', cannon.x, cannon.y);
+            }
+
+            function createExplosion() {
+                console.log('Creating explosion at cannon position');
+                const count = 60;
+                for (let i = 0; i < count; i++) {
+                    const angle = (Math.PI * 2 * i / count) + rnd(-0.3, 0.3);
+                    const speed = rnd(4, 12);
+                    const color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+                    
+                    particles.push({
+                        x: cannon.x + Math.cos(cannon.angle) * 75 * cannon.scale,
+                        y: cannon.y + Math.sin(cannon.angle) * 75 * cannon.scale,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        radius: rnd(4, 9),
+                        color: color,
+                        life: 1.0,
+                        decay: rnd(0.012, 0.02),
+                        glow: true
+                    });
+                }
+
+                for (let i = 0; i < 3; i++) {
+                    rings.push({
+                        x: cannon.x + Math.cos(cannon.angle) * 75 * cannon.scale,
+                        y: cannon.y + Math.sin(cannon.angle) * 75 * cannon.scale,
+                        radius: 0,
+                        maxRadius: rnd(80, 120),
+                        speed: rnd(3, 5),
+                        color: colorPalette[Math.floor(Math.random() * colorPalette.length)],
+                        life: 1.0,
+                        width: rnd(3, 6)
+                    });
+                }
+            }
+
+            function createStars(x, y, count = 12) {
+                for (let i = 0; i < count; i++) {
+                    const angle = (Math.PI * 2 * i / count) + rnd(-0.2, 0.2);
+                    const distance = rnd(15, 35);
+                    
+                    stars.push({
+                        x: x + Math.cos(angle) * distance,
+                        y: y + Math.sin(angle) * distance,
+                        size: rnd(8, 15),
+                        color: colorPalette[Math.floor(Math.random() * colorPalette.length)],
+                        life: 1.0,
+                        rotation: rnd(0, Math.PI * 2),
+                        rotationSpeed: rnd(-0.15, 0.15)
+                    });
+                }
+            }
+
+            function fire() {
+                console.log('🔫 FIRE! Cannon firing at position:', cannon.x, cannon.y);
+                cannon.recoil = 20 * cannon.scale;
+                showCannon = true;
+                cannonHideTime = performance.now() + 3000; // 3초간 표시
+                
+                createExplosion();
+                
+                setTimeout(() => {
+                    const startX = cannon.x + Math.cos(cannon.angle) * 90 * cannon.scale;
+                    const startY = cannon.y + Math.sin(cannon.angle) * 90 * cannon.scale;
+                    createStars(startX, startY, 12);
+                }, 50);
+
+                if (!animationRunning) {
+                    animationRunning = true;
+                    last = performance.now();
+                    draw(last);
+                }
+            }
+
+            function drawCannon() {
+                ctx.save();
+                ctx.translate(cannon.x, cannon.y);
+                
+                if (cannon.recoil > 0) {
+                    const recoilX = Math.cos(cannon.angle) * cannon.recoil;
+                    const recoilY = Math.sin(cannon.angle) * cannon.recoil;
+                    ctx.translate(recoilX, recoilY);
+                    cannon.recoil *= 0.8;
+                    if (cannon.recoil < 0.1) cannon.recoil = 0;
+                }
+
+                ctx.rotate(cannon.angle);
+                ctx.scale(cannon.scale, cannon.scale);
+
+                // Cannon barrel shadow
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.beginPath();
+                ctx.rect(2, -10, 60, 24);
+                ctx.fill();
+
+                // Cannon barrel
+                const barrelGradient = ctx.createLinearGradient(0, -12, 0, 12);
+                barrelGradient.addColorStop(0, '#555');
+                barrelGradient.addColorStop(0.5, '#333');
+                barrelGradient.addColorStop(1, '#444');
+                ctx.fillStyle = barrelGradient;
+                ctx.strokeStyle = '#222';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.rect(0, -12, 60, 24);
+                ctx.fill();
+                ctx.stroke();
+
+                // Cannon barrel highlight
+                ctx.fillStyle = '#777';
+                ctx.beginPath();
+                ctx.rect(0, -12, 60, 6);
+                ctx.fill();
+
+                // Barrel stripes
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 2;
+                for (let i = 10; i < 60; i += 15) {
+                    ctx.beginPath();
+                    ctx.moveTo(i, -10);
+                    ctx.lineTo(i, 10);
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+
+                // Cannon base
+                ctx.save();
+                ctx.translate(cannon.x, cannon.y);
+                ctx.scale(cannon.scale, cannon.scale);
+                
+                const baseGradient = ctx.createRadialGradient(-5, -5, 0, 0, 0, 20);
+                baseGradient.addColorStop(0, '#666');
+                baseGradient.addColorStop(1, '#333');
+                ctx.fillStyle = baseGradient;
+                ctx.strokeStyle = '#222';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(0, 0, 20, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Wheel decorations
+                ctx.fillStyle = '#888';
+                for (let i = 0; i < 8; i++) {
+                    const angle = (Math.PI * 2 * i / 8);
+                    const wx = Math.cos(angle) * 13;
+                    const wy = Math.sin(angle) * 13;
+                    ctx.beginPath();
+                    ctx.arc(wx, wy, 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Center decoration
+                ctx.fillStyle = '#aaa';
+                ctx.beginPath();
+                ctx.arc(0, 0, 5, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+            }
+
+            function update(dt, now) {
+                // Hide cannon after timeout
+                if (showCannon && now >= cannonHideTime) {
+                    showCannon = false;
+                    console.log('Hiding cannon');
+                }
+
+                // Update particles
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const p = particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.15;
+                    p.vx *= 0.98;
+                    p.vy *= 0.98;
+                    p.life -= p.decay;
+
+                    if (p.life <= 0) {
+                        particles.splice(i, 1);
+                    }
+                }
+
+                // Update stars
+                for (let i = stars.length - 1; i >= 0; i--) {
+                    const s = stars[i];
+                    s.rotation += s.rotationSpeed;
+                    s.life -= 0.02;
+
+                    if (s.life <= 0) {
+                        stars.splice(i, 1);
+                    }
+                }
+
+                // Update rings
+                for (let i = rings.length - 1; i >= 0; i--) {
+                    const r = rings[i];
+                    r.radius += r.speed;
+                    r.life -= 0.015;
+
+                    if (r.radius >= r.maxRadius || r.life <= 0) {
+                        rings.splice(i, 1);
+                    }
+                }
+
+                // Stop animation if nothing to draw
+                if (!showCannon && particles.length === 0 && stars.length === 0 && rings.length === 0) {
+                    animationRunning = false;
+                    console.log('Animation stopped');
+                }
+            }
+
+            function drawStar(x, y, size, rotation, alpha) {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(rotation);
+                
+                ctx.beginPath();
+                for (let i = 0; i < 5; i++) {
+                    const angle = (Math.PI * 2 * i / 5) - Math.PI / 2;
+                    const outerX = Math.cos(angle) * size;
+                    const outerY = Math.sin(angle) * size;
+                    const innerAngle = angle + Math.PI / 5;
+                    const innerX = Math.cos(innerAngle) * (size * 0.4);
+                    const innerY = Math.sin(innerAngle) * (size * 0.4);
+                    
+                    if (i === 0) {
+                        ctx.moveTo(outerX, outerY);
+                    } else {
+                        ctx.lineTo(outerX, outerY);
+                    }
+                    ctx.lineTo(innerX, innerY);
+                }
+                ctx.closePath();
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                ctx.fill();
+                
+                ctx.restore();
+            }
+
+            function draw(now) {
+                if (!animationRunning) return;
+
+                const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000));
+                last = now;
+
+                ctx.clearRect(0, 0, w, h);
+
+                update(dt, now);
+
+                // Draw cannon
+                if (showCannon) {
+                    drawCannon();
+                }
+
+                // Draw rings
+                for (const r of rings) {
+                    const alpha = r.life * (1 - r.radius / r.maxRadius);
+                    ctx.strokeStyle = `rgba(${r.color[0]}, ${r.color[1]}, ${r.color[2]}, ${alpha})`;
+                    ctx.lineWidth = r.width;
+                    ctx.beginPath();
+                    ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                // Draw particles
+                for (const p of particles) {
+                    const alpha = p.life;
+                    
+                    if (p.glow) {
+                        const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius * 4);
+                        gradient.addColorStop(0, `rgba(${p.color[0]}, ${p.color[1]}, ${p.color[2]}, ${alpha * 0.8})`);
+                        gradient.addColorStop(0.5, `rgba(${p.color[0]}, ${p.color[1]}, ${p.color[2]}, ${alpha * 0.4})`);
+                        gradient.addColorStop(1, `rgba(${p.color[0]}, ${p.color[1]}, ${p.color[2]}, 0)`);
+                        ctx.fillStyle = gradient;
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, p.radius * 4, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    ctx.fillStyle = `rgba(${p.color[0]}, ${p.color[1]}, ${p.color[2]}, ${alpha})`;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Draw stars
+                for (const s of stars) {
+                    const gradient = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.size * 2);
+                    gradient.addColorStop(0, `rgba(${s.color[0]}, ${s.color[1]}, ${s.color[2]}, ${s.life * 0.6})`);
+                    gradient.addColorStop(1, `rgba(${s.color[0]}, ${s.color[1]}, ${s.color[2]}, 0)`);
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(s.x, s.y, s.size * 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    drawStar(s.x, s.y, s.size, s.rotation, s.life);
+                }
+
+                if (animationRunning) {
+                    rafId = requestAnimationFrame(draw);
+                }
+            }
+
+            resize();
+            window.addEventListener('resize', resize, { passive: true });
+
+            // Expose fire function globally
+            window.cannonEffect = { 
+                fire: fire,
+                getCannonPosition: () => ({ x: cannon.x, y: cannon.y })
+            };
+            
+            console.log('Cannon effect initialized!');
+        })();
+    </script>
 </body>
 </html>

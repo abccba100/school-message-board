@@ -1,9 +1,3 @@
-const CANNON = window.cannonEffect?.CANNON || {
-    x: 150,
-    y: () => containerHeight - 100,
-    angle: -45 * Math.PI / 180
-};
-
 // ============================================
 // 조절 가능한 파라미터 목록
 // ============================================
@@ -514,39 +508,57 @@ function animate(now) {
 
 // Add new ball - 대포 위치에서 시작!
 function addBall(message, isNew = false) {
-    const startX = isNew ? CANNON.x : Math.random() * containerWidth;
-    const startY = isNew ? CANNON.y() : Math.random() * containerHeight;
-
-    const ball = new Ball(message.id, message.content, startX, startY);
-
+    let startX, startY;
+    
     if (isNew) {
-        // 🔥 발사 방향 속도
-        const speed = 320 + Math.random() * 120;
-        ball.vx = Math.cos(CANNON.angle) * speed;
-        ball.vy = Math.sin(CANNON.angle) * speed;
-
-        // 말랑한 초기 스쿼시
-        ball.squishX -= 0.18;
-        ball.squishY += 0.28;
-        ball.rotV += (Math.random() - 0.5) * 40;
-
-        // 주변 공 밀어내기 (기존 충돌 감성 유지)
-        balls.forEach(b => {
-            const dx = b.x - startX;
-            const dy = b.y - startY;
-            const d = Math.hypot(dx, dy);
-            if (d > 0 && d < 260) {
-                const f = 60 / Math.max(120, d);
-                b.applyForce((dx / d) * f, (dy / d) * f);
-                b.squishX += clamp(dx / d * 0.08, -0.12, 0.12);
-                b.squishY += clamp(dy / d * 0.08, -0.12, 0.12);
+        // 새 메시지는 대포 위치에서 시작
+        if (window.cannonEffect && window.cannonEffect.getCannonPosition) {
+            const cannonPos = window.cannonEffect.getCannonPosition();
+            startX = cannonPos.x;
+            startY = cannonPos.y;
+            console.log('🎈 Creating ball at cannon position:', startX, startY);
+        } else {
+            // fallback: 왼쪽 아래
+            startX = 150;
+            startY = containerHeight - 100;
+            console.log('⚠️ Cannon not available, using fallback position');
+        }
+    } else {
+        // 기존 메시지는 랜덤 위치
+        startX = Math.random() * containerWidth;
+        startY = Math.random() * containerHeight;
+    }
+    
+    const ball = new Ball(message.id, message.content, startX, startY);
+    
+    if (isNew) {
+        // 대포에서 발사되는 듯한 초기 속도 (오른쪽 위 방향)
+        const angle = -45 * Math.PI / 180; // 45도 위쪽
+        const speed = 300 + Math.random() * 100; // 빠른 초기 속도
+        ball.vx = Math.cos(angle) * speed;
+        ball.vy = Math.sin(angle) * speed;
+        
+        console.log('🚀 Ball velocity:', ball.vx, ball.vy);
+        
+        // Push away existing balls
+        balls.forEach(existingBall => {
+            const dx = existingBall.x - startX;
+            const dy = existingBall.y - startY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance < 240 && distance > 0) {
+                const force = 52 / Math.max(90, distance);
+                const fx = (dx / distance) * force;
+                const fy = (dy / distance) * force;
+                existingBall.applyForce(fx, fy);
+                existingBall.squishX += clamp((dx / distance) * 0.06, -0.08, 0.08);
+                existingBall.squishY += clamp((dy / distance) * 0.06, -0.08, 0.08);
             }
         });
     }
-
+    
     balls.push(ball);
 }
-
 
 // Initialize
 updateContainerSize();
@@ -572,15 +584,21 @@ socket.on('connect_error', (error) => {
 });
 
 socket.on('newMessage', (message) => {
-    // 🎉 시각 효과
-    if (window.cannonEffect) {
+    console.log('📩 New message received!', message);
+    
+    // 🎉 대포 발사!
+    if (window.cannonEffect && window.cannonEffect.fire) {
+        console.log('🔫 Firing cannon!');
         window.cannonEffect.fire();
+    } else {
+        console.error('❌ Cannon effect not available!');
     }
-
-    // 타이밍 맞춰 공 생성
+    
+    // 약간의 딜레이 후 메시지 공 추가 (대포에서 발사되는 느낌)
     setTimeout(() => {
+        console.log('🎈 Adding ball...');
         addBall(message, true);
-    }, 120);
+    }, 150);
 });
 
 socket.on('disconnect', () => {
@@ -601,11 +619,10 @@ async function loadInitialMessages() {
         
         // Add all messages with random positions
         messages.forEach(msg => {
-            const x = Math.random() * containerWidth;
-            const y = Math.random() * containerHeight;
-            const ball = new Ball(msg.id, msg.content, x, y);
-            balls.push(ball);
+            addBall(msg, false);
         });
+        
+        console.log('✅ Loaded', messages.length, 'initial messages');
     } catch (error) {
         console.error('Error loading messages:', error);
         showStatus('메시지 로드 실패', 'error');
