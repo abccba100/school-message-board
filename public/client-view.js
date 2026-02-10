@@ -127,13 +127,10 @@ class Ball {
         // born pop timing
         this.bornAt = performance.now();
         
-        // 발사 애니메이션용 (직선 비행)
+        // 발사 애니메이션용 (속도 기반 직선 비행)
         this.isLaunching = false;
-        this.launchProgress = 0;
-        this.launchStartX = 0;
-        this.launchStartY = 0;
-        this.launchTargetX = 0;
-        this.launchTargetY = 0;
+        this.launchTimer = 0;
+        this.launchDuration = 0;
         
         this.createElement();
     }
@@ -207,16 +204,38 @@ class Ball {
     }
 
     update(dt, now) {
-        // 발사 애니메이션 처리 (직선 비행, 빠르게 출발 → 점점 감속)
+        // 발사 애니메이션 처리 (속도 기반 직선 비행 - 대포처럼)
         if (this.isLaunching) {
-            this.launchProgress += dt * 1.6; // 비행 속도 (약 0.6초)
+            this.launchTimer += dt;
+            const progress = Math.min(1.0, this.launchTimer / this.launchDuration);
             
-            if (this.launchProgress >= 1.0) {
+            // 직선으로 날아감 (속도 기반, 자연스러운 감속)
+            this.x += this.vx;
+            this.y += this.vy;
+            
+            // 부드러운 감속 (매 프레임 속도 줄임)
+            const decel = 0.96;
+            this.vx *= decel;
+            this.vy *= decel;
+            
+            this.rot += this.rotV * dt;
+            
+            // 비행 중 스쿼시 (진행방향으로 늘어남)
+            const speed = Math.hypot(this.vx, this.vy);
+            const stretchAmount = clamp(speed / 20, 0, 0.5);
+            this.squishX = stretchAmount;
+            this.squishY = -stretchAmount * 0.4;
+            
+            // 비행 중 파티클 트레일 이벤트 발생
+            if (window.launchEffect && window.launchEffect.emitTrail) {
+                window.launchEffect.emitTrail(this.x, this.y, this.vx * 60, this.vy * 60, this.hue, progress);
+            }
+            
+            // 비행 종료 (속도가 충분히 줄었거나 시간 초과)
+            if (speed < 0.5 || progress >= 1.0) {
                 this.isLaunching = false;
-                this.launchProgress = 1.0;
-                // 도착 시 약간의 속도 부여 (자연스러운 전환)
-                this.vx = (Math.random() - 0.5) * 25;
-                this.vy = (Math.random() - 0.5) * 25;
+                this.vx = (Math.random() - 0.5) * 20;
+                this.vy = (Math.random() - 0.5) * 20;
                 // 도착 폭발 이펙트!
                 if (window.launchEffect && window.launchEffect.createArrivalBurst) {
                     window.launchEffect.createArrivalBurst(this.x, this.y);
@@ -226,41 +245,11 @@ class Ball {
                 this.squishY = 0.18;
             }
             
-            // easeOutQuart: 빠르게 출발하고 점점 느려지는 감속
-            const t = 1 - Math.pow(1 - this.launchProgress, 4);
-            
-            // 직선 보간: start → target
-            const newX = this.launchStartX + (this.launchTargetX - this.launchStartX) * t;
-            const newY = this.launchStartY + (this.launchTargetY - this.launchStartY) * t;
-            
-            // 속도 계산 (파티클 방향 참고용)
-            this.vx = (newX - this.x) / Math.max(dt, 0.001);
-            this.vy = (newY - this.y) / Math.max(dt, 0.001);
-            
-            this.x = newX;
-            this.y = newY;
-            
-            // 비행 중 스쿼시 (진행방향으로 늘어남, 초반에 더 강하게)
-            const speed = Math.hypot(this.vx, this.vy);
-            const earlyPhase = Math.max(0, 1.0 - this.launchProgress * 2.0); // 전반부에 강한 스트레치
-            const stretchAmount = clamp(speed / 600, 0, 0.7) * earlyPhase;
-            this.squishX = stretchAmount;
-            this.squishY = -stretchAmount * 0.5;
-            
-            // 비행 중 파티클 트레일 이벤트 발생
-            if (window.launchEffect && window.launchEffect.emitTrail) {
-                window.launchEffect.emitTrail(this.x, this.y, this.vx, this.vy, this.hue, this.launchProgress);
-            }
-            
-            // update DOM during launch (skip normal physics)
+            // update DOM during launch
             if (this.element) {
                 const tx = (this.x - this.radius);
                 const ty = (this.y - this.radius);
-                // 비행방향 각도로 기울기
-                const flyAngle = Math.atan2(this.launchTargetY - this.launchStartY, this.launchTargetX - this.launchStartX) * (180 / Math.PI);
-                const tiltAmount = clamp(speed / 500, 0, 1) * earlyPhase;
-                const displayRot = flyAngle * 0.12 * tiltAmount;
-                this.element.style.transform = `translate3d(${tx}px, ${ty}px, 0) rotate(${displayRot}deg) scale(${1 + this.squishX}, ${1 + this.squishY})`;
+                this.element.style.transform = `translate3d(${tx}px, ${ty}px, 0) rotate(${this.rot}deg) scale(${1 + this.squishX}, ${1 + this.squishY})`;
             }
             return; // 발사 중에는 일반 물리 스킵
         }
@@ -585,17 +574,20 @@ function addBall(message, isNew = false) {
         const targetX = containerWidth * 0.5 + (Math.random() - 0.5) * containerWidth * 0.2;
         const targetY = containerHeight * 0.5 + (Math.random() - 0.5) * containerHeight * 0.15;
         
-        // 직선 비행 설정
-        ball.isLaunching = true;
-        ball.launchProgress = 0;
-        ball.launchStartX = launchX;
-        ball.launchStartY = launchY;
-        ball.launchTargetX = targetX;
-        ball.launchTargetY = targetY;
+        // 발사 방향 계산 (왼쪽 아래 → 중앙 방향)
+        const dx = targetX - launchX;
+        const dy = targetY - launchY;
+        const angle = Math.atan2(dy, dx);
         
-        // 초기 속도 0 (애니메이션이 제어)
-        ball.vx = 0;
-        ball.vy = 0;
+        // 강한 초기 속도 (직선으로 쏘듯이)
+        const speed = 22 + Math.random() * 6;
+        ball.vx = Math.cos(angle) * speed;
+        ball.vy = Math.sin(angle) * speed;
+        
+        // 발사 모드 ON
+        ball.isLaunching = true;
+        ball.launchTimer = 0;
+        ball.launchDuration = 2.5; // 최대 2.5초 후 자동 종료
         
         // 발사 방향으로 회전 킥
         ball.rotV = (Math.random() - 0.5) * 50;

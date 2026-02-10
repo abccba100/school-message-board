@@ -203,11 +203,17 @@
 
                 launchPoint.x = 80;
                 launchPoint.y = h - 80;
+                
+                // 발사 방향 재계산 (왼쪽 아래 → 화면 중앙)
+                launchAngle = Math.atan2((h * 0.5) - launchPoint.y, (w * 0.5) - launchPoint.x);
             }
 
+            // 발사 방향 (왼쪽 아래 → 화면 중앙)
+            let launchAngle = Math.atan2(-h * 0.5, w * 0.5);
+            
             function createLaunchBurst() {
                 const count = 90;
-                const angle = -45 * Math.PI / 180;
+                const angle = launchAngle;
                 
                 // 발사 방향 주변으로 퍼지는 파티클 (더 많고 더 화려하게)
                 for (let i = 0; i < count; i++) {
@@ -296,7 +302,7 @@
 
             function createSparkTrail() {
                 const count = 30;
-                const angle = -45 * Math.PI / 180;
+                const angle = launchAngle;
                 
                 for (let i = 0; i < count; i++) {
                     const distance = i * 12;
