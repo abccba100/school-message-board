@@ -1,3 +1,4 @@
+
 // ============================================
 // 조절 가능한 파라미터 목록
 // ============================================
@@ -57,6 +58,10 @@
         });
     }
 })();
+
+if (window.launchEffect && window.launchEffect.fire) {
+    window.launchEffect.fire();
+}
 
 const ballContainer = document.getElementById('ballContainer');
 const status = document.getElementById('status');
