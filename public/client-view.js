@@ -98,23 +98,23 @@ const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-re
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 
-// world tuning (말랑/따뜻/끈적)
+// world tuning (말랑/따뜻/끈적) - 강화된 물리 효과
 const WORLD = {
     maxDt: 0.05,
     noiseAmp: 22,             // px/s^2
     noiseSpeed: 0.62,         // phase speed
     dragPerSecond: 0.34,      // higher = more sticky
-    boundaryK: 46,            // boundary spring (젤리벽)
-    boundaryD: 14.5,          // boundary damping
-    boundaryFriction: 0.78,   // tangential damping on wall contact
-    boundaryZone: 26,         // soft zone thickness (px)
-    collideK: 62,             // collision spring
-    collideD: 15.0,           // collision damping
-    collideFriction: 0.88,    // tangential damping on contact
-    separateRate: 0.12,       // slow positional separation factor
-    maxSepCorrection: 1.25,   // max px per frame of positional correction
+    boundaryK: 56,            // boundary spring (젤리벽) - 증가
+    boundaryD: 16.5,          // boundary damping - 증가
+    boundaryFriction: 0.75,   // tangential damping on wall contact - 감소 (더 끈적)
+    boundaryZone: 32,         // soft zone thickness (px) - 증가
+    collideK: 72,             // collision spring - 증가
+    collideD: 18.0,           // collision damping - 증가
+    collideFriction: 0.85,    // tangential damping on contact - 감소 (더 끈적)
+    separateRate: 0.15,       // slow positional separation factor
+    maxSepCorrection: 1.5,    // max px per frame of positional correction
     maxSpeed: 190,            // px/s
-    maxContactSquish: 0.34,   // clamp for squish magnitude
+    maxContactSquish: 0.42,   // clamp for squish magnitude - 증가
 };
 
 // Ball class
@@ -140,7 +140,7 @@ class Ball {
         this.phase2 = Math.random() * Math.PI * 2;
         this.phaseSpeed = 0.45 + Math.random() * 0.35;
 
-        // squash & stretch (slime)
+        // squash & stretch (slime) - 향상된 값
         this.sx = 1;
         this.sy = 1;
         this.svx = 0;
@@ -158,6 +158,8 @@ class Ball {
         this.isLaunching = false;
         this.launchTimer = 0;
         this.launchDuration = 0;
+        this.launchStartX = x;
+        this.launchStartY = y;
         
         this.createElement();
     }
@@ -241,7 +243,7 @@ class Ball {
             this.y += this.vy;
             
             // 부드러운 감속 (매 프레임 속도 줄임)
-            const decel = 0.96;
+            const decel = 0.945;
             this.vx *= decel;
             this.vy *= decel;
             
@@ -249,9 +251,9 @@ class Ball {
             
             // 비행 중 스쿼시 (진행방향으로 늘어남)
             const speed = Math.hypot(this.vx, this.vy);
-            const stretchAmount = clamp(speed / 20, 0, 0.5);
+            const stretchAmount = clamp(speed / 18, 0, 0.55);
             this.squishX = stretchAmount;
-            this.squishY = -stretchAmount * 0.4;
+            this.squishY = -stretchAmount * 0.45;
             
             // 비행 중 파티클 트레일 이벤트 발생
             if (window.launchEffect && window.launchEffect.emitTrail) {
@@ -259,17 +261,17 @@ class Ball {
             }
             
             // 비행 종료 (속도가 충분히 줄었거나 시간 초과)
-            if (speed < 0.5 || progress >= 1.0) {
+            if (speed < 0.8 || progress >= 1.0) {
                 this.isLaunching = false;
-                this.vx = (Math.random() - 0.5) * 20;
-                this.vy = (Math.random() - 0.5) * 20;
+                this.vx = (Math.random() - 0.5) * 25;
+                this.vy = (Math.random() - 0.5) * 25;
                 // 도착 폭발 이펙트!
                 if (window.launchEffect && window.launchEffect.createArrivalBurst) {
                     window.launchEffect.createArrivalBurst(this.x, this.y);
                 }
                 // 도착 스쿼시 (찌그러짐)
-                this.squishX = -0.25;
-                this.squishY = 0.18;
+                this.squishX = -0.28;
+                this.squishY = 0.20;
             }
             
             // update DOM during launch
@@ -313,7 +315,7 @@ class Ball {
 
         // subtle breathing (cheap, 1D)
         const t = now * 0.001;
-        const breath = prefersReducedMotion ? 0 : (Math.sin(t * 0.9 + this.phase2) * 0.02);
+        const breath = prefersReducedMotion ? 0 : (Math.sin(t * 0.9 + this.phase2) * 0.025);
         const targetSx = 1 + breath;
         const targetSy = 1 - breath;
 
@@ -321,16 +323,16 @@ class Ball {
         let pulse = 0;
         if (!prefersReducedMotion) {
             this.pulseP += dt * (0.6 + (this.phaseSpeed * 0.35));
-            pulse = Math.sin(this.pulseP) * 0.012;
+            pulse = Math.sin(this.pulseP) * 0.015;
         }
 
         // squish targets blend
         const sxTarget = (targetSx + pulse) + this.squishX;
         const syTarget = (targetSy - pulse) + this.squishY;
 
-        // springy scale back (slime)
-        const sk = 26;
-        const sd = 11;
+        // springy scale back (slime) - 더 강한 말랑거림
+        const sk = 32;
+        const sd = 13;
         this.svx += (sxTarget - this.sx) * sk * dt;
         this.svx *= Math.exp(-sd * dt);
         this.sx += this.svx * dt;
@@ -339,9 +341,9 @@ class Ball {
         this.svy *= Math.exp(-sd * dt);
         this.sy += this.svy * dt;
 
-        // decay squish
-        this.squishX *= Math.exp(-8.4 * dt);
-        this.squishY *= Math.exp(-8.4 * dt);
+        // decay squish - 더 천천히 사라짐
+        this.squishX *= Math.exp(-7.2 * dt);
+        this.squishY *= Math.exp(-7.2 * dt);
 
         // tiny rotation drift
         this.rotV *= Math.exp(-2.2 * dt);
@@ -391,14 +393,14 @@ class Ball {
             const fN = (depth * WORLD.boundaryK - vN * WORLD.boundaryD);
             this.vx += (fN * nSign) * (dt / this.mass);
 
-            // wall tangential friction (y)
-            this.vy *= Math.exp(-WORLD.boundaryFriction * dt * clamp(depth / zone, 0, 1));
+            // wall tangential friction (y) - 더 끈적한 효과
+            this.vy *= Math.exp(-WORLD.boundaryFriction * dt * clamp(depth / zone, 0, 1) * 1.3);
 
-            // squash oriented to wall
-            const s = clamp((depth / zone) * 0.22, 0, WORLD.maxContactSquish);
-            this.squishX += (Math.abs(nSign) * -0.18) * s;
-            this.squishY += (0.12) * s;
-            this.rotV += clamp(this.vy * 0.015, -18, 18);
+            // squash oriented to wall - 더 큰 변형
+            const s = clamp((depth / zone) * 0.28, 0, WORLD.maxContactSquish);
+            this.squishX += (Math.abs(nSign) * -0.22) * s;
+            this.squishY += (0.15) * s;
+            this.rotV += clamp(this.vy * 0.018, -20, 20);
         }
 
         if (dy > 0) {
@@ -408,14 +410,14 @@ class Ball {
             const fN = (depth * WORLD.boundaryK - vN * WORLD.boundaryD);
             this.vy += (fN * nSign) * (dt / this.mass);
 
-            // wall tangential friction (x)
-            this.vx *= Math.exp(-WORLD.boundaryFriction * dt * clamp(depth / zone, 0, 1));
+            // wall tangential friction (x) - 더 끈적한 효과
+            this.vx *= Math.exp(-WORLD.boundaryFriction * dt * clamp(depth / zone, 0, 1) * 1.3);
 
-            // squash oriented to wall
-            const s = clamp((depth / zone) * 0.22, 0, WORLD.maxContactSquish);
-            this.squishY += (Math.abs(nSign) * -0.18) * s;
-            this.squishX += (0.12) * s;
-            this.rotV += clamp(this.vx * 0.015, -18, 18);
+            // squash oriented to wall - 더 큰 변형
+            const s = clamp((depth / zone) * 0.28, 0, WORLD.maxContactSquish);
+            this.squishY += (Math.abs(nSign) * -0.22) * s;
+            this.squishX += (0.15) * s;
+            this.rotV += clamp(this.vx * 0.018, -20, 20);
         }
 
         // keep inside with a tiny margin (avoid runaway)
@@ -466,12 +468,12 @@ class Ball {
         other.vx += (ax * (1 / other.mass)) * (1 / 60);
         other.vy += (ay * (1 / other.mass)) * (1 / 60);
 
-        // tangential friction (sticky contact)
+        // tangential friction (sticky contact) - 더 강함
         const tx = -ny;
         const ty = nx;
         const relT = rvx * tx + rvy * ty;
         const fr = WORLD.collideFriction;
-        const tDamp = relT * fr;
+        const tDamp = relT * fr * 1.2;
         const ftx = tx * tDamp;
         const fty = ty * tDamp;
         this.vx += (ftx * (1 / this.mass)) * (1 / 60);
@@ -479,7 +481,7 @@ class Ball {
         other.vx -= (ftx * (1 / other.mass)) * (1 / 60);
         other.vy -= (fty * (1 / other.mass)) * (1 / 60);
 
-        // squish oriented to contact direction (slime)
+        // squish oriented to contact direction (slime) - 더 큼
         const softness = Math.min(this.radius, other.radius) * 0.9;
         const s = clamp(penetration / (softness || 1), 0, WORLD.maxContactSquish);
         const nxx = nx * nx;
@@ -487,16 +489,16 @@ class Ball {
         const sA = s * (other.mass / (this.mass + other.mass));
         const sB = s * (this.mass / (this.mass + other.mass));
 
-        // compress along normal, expand along tangent (axis-oriented)
-        this.squishX += (0.16 - nxx) * sA * 0.72;
-        this.squishY += (0.16 - nyy) * sA * 0.72;
-        other.squishX += (0.16 - nxx) * sB * 0.72;
-        other.squishY += (0.16 - nyy) * sB * 0.72;
+        // compress along normal, expand along tangent (axis-oriented) - 더 큼
+        this.squishX += (0.18 - nxx) * sA * 0.85;
+        this.squishY += (0.18 - nyy) * sA * 0.85;
+        other.squishX += (0.18 - nxx) * sB * 0.85;
+        other.squishY += (0.18 - nyy) * sB * 0.85;
 
-        // tiny rotation kick (gooey)
+        // tiny rotation kick (gooey) - 더 강함
         const twist = (rvx * -ny + rvy * nx);
-        this.rotV += clamp(twist * 0.012, -22, 22);
-        other.rotV -= clamp(twist * 0.012, -22, 22);
+        this.rotV += clamp(twist * 0.016, -25, 25);
+        other.rotV -= clamp(twist * 0.016, -25, 25);
     }
 
     applyForce(fx, fy) {
@@ -598,8 +600,8 @@ function addBall(message, isNew = false) {
     
     if (isNew) {
         // 도착 지점 (화면 중앙 근처, 약간의 랜덤)
-        const targetX = containerWidth * 0.5 + (Math.random() - 0.5) * containerWidth * 0.2;
-        const targetY = containerHeight * 0.5 + (Math.random() - 0.5) * containerHeight * 0.15;
+        const targetX = containerWidth * 0.5 + (Math.random() - 0.5) * containerWidth * 0.25;
+        const targetY = containerHeight * 0.5 + (Math.random() - 0.5) * containerHeight * 0.18;
         
         // 발사 방향 계산 (왼쪽 아래 → 중앙 방향)
         const dx = targetX - launchX;
@@ -607,17 +609,17 @@ function addBall(message, isNew = false) {
         const angle = Math.atan2(dy, dx);
         
         // 강한 초기 속도 (직선으로 쏘듯이)
-        const speed = 22 + Math.random() * 6;
+        const speed = 24 + Math.random() * 8;
         ball.vx = Math.cos(angle) * speed;
         ball.vy = Math.sin(angle) * speed;
         
         // 발사 모드 ON
         ball.isLaunching = true;
         ball.launchTimer = 0;
-        ball.launchDuration = 2.5; // 최대 2.5초 후 자동 종료
+        ball.launchDuration = 2.2; // 최대 2.2초 후 자동 종료
         
         // 발사 방향으로 회전 킥
-        ball.rotV = (Math.random() - 0.5) * 50;
+        ball.rotV = (Math.random() - 0.5) * 55;
         
         // Push away existing balls near target (도착지 충격파 효과)
         balls.forEach(existingBall => {
@@ -625,13 +627,13 @@ function addBall(message, isNew = false) {
             const dy = existingBall.y - targetY;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
-            if (distance < 350 && distance > 0) {
-                const force = 100 / Math.max(120, distance);
+            if (distance < 380 && distance > 0) {
+                const force = 120 / Math.max(140, distance);
                 const fx = (dx / distance) * force;
                 const fy = (dy / distance) * force;
                 existingBall.applyForce(fx, fy);
-                existingBall.squishX += clamp((dx / distance) * 0.15, -0.15, 0.15);
-                existingBall.squishY += clamp((dy / distance) * 0.15, -0.15, 0.15);
+                existingBall.squishX += clamp((dx / distance) * 0.18, -0.18, 0.18);
+                existingBall.squishY += clamp((dy / distance) * 0.18, -0.18, 0.18);
             }
         });
     }
@@ -649,24 +651,12 @@ window.addEventListener('resize', () => {
 const io = window.io; // Declare the io variable before using it
 socket = io();
 
-socket.on('connect', async () => {
-    showStatus('연결됨', 'success');
-    statusHideAt = performance.now() + 2000;
-    await loadInitialMessages();
-    if (animationId === null) {
-        lastNow = performance.now();
-        animate(lastNow);
-    }
-});
-
-socket.on('connect_error', (error) => {
-    showStatus('연결 실패', 'error');
-});
-
 socket.on('newMessage', (message) => {
-    // 🎉 발사 효과! (더 강렬하게)
-    if (window.launchEffect) {
-        console.log('✨ New message effect triggered!');
+    console.log('📨 New message received:', message.content);
+    
+    // 🎉 발사 효과! (공이 나올 때 자동으로 - 여러 번)
+    if (window.launchEffect && window.launchEffect.fire) {
+        console.log('✨ Launch effect triggered!');
         window.launchEffect.fire();
         
         // 약간의 딜레이 후 추가 폭발
@@ -674,11 +664,24 @@ socket.on('newMessage', (message) => {
             if (window.launchEffect && window.launchEffect.fire) {
                 window.launchEffect.fire();
             }
-        }, 200);
+        }, 120);
     }
     
     // 동시에 메시지 공 추가 (발사 지점에서 튀어나옴)
     addBall(message, true);
+    
+    // 도착 효과 (공이 도착할 때쯤)
+    setTimeout(() => {
+        if (window.launchEffect && window.launchEffect.createArrivalBurst) {
+            const targetX = containerWidth * 0.5 + (Math.random() - 0.5) * containerWidth * 0.25;
+            const targetY = containerHeight * 0.5 + (Math.random() - 0.5) * containerHeight * 0.18;
+            window.launchEffect.createArrivalBurst(targetX, targetY);
+        }
+    }, 2200);
+});
+
+socket.on('connect_error', (error) => {
+    showStatus('연결 실패', 'error');
 });
 
 socket.on('disconnect', () => {
@@ -715,3 +718,9 @@ function showStatus(message, type) {
     status.className = type;
     status.style.display = 'block';
 }
+
+// Start animation loop when page is ready
+document.addEventListener('DOMContentLoaded', () => {
+    loadInitialMessages();
+    animate(performance.now());
+});
