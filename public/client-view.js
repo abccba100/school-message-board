@@ -1,4 +1,3 @@
-
 // ============================================
 // 조절 가능한 파라미터 목록
 // ============================================
@@ -59,9 +58,32 @@
     }
 })();
 
-if (window.launchEffect && window.launchEffect.fire) {
-    window.launchEffect.fire();
-}
+// 페이지 로드 시 환영 효과 (약간 지연 후 실행)
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        if (window.launchEffect && window.launchEffect.fire) {
+            console.log('🎉 Welcome effect triggered!');
+            window.launchEffect.fire();
+            
+            // 연쇄 폭발 (환영식)
+            setTimeout(() => {
+                if (window.launchEffect && window.launchEffect.createArrivalBurst) {
+                    window.launchEffect.createArrivalBurst(
+                        window.innerWidth / 2,
+                        window.innerHeight / 2
+                    );
+                }
+            }, 500);
+            
+            // 추가 폭발
+            setTimeout(() => {
+                if (window.launchEffect && window.launchEffect.fire) {
+                    window.launchEffect.fire();
+                }
+            }, 1000);
+        }
+    }, 800);
+});
 
 const ballContainer = document.getElementById('ballContainer');
 const status = document.getElementById('status');
@@ -642,9 +664,17 @@ socket.on('connect_error', (error) => {
 });
 
 socket.on('newMessage', (message) => {
-    // 🎉 발사 효과!
+    // 🎉 발사 효과! (더 강렬하게)
     if (window.launchEffect) {
+        console.log('✨ New message effect triggered!');
         window.launchEffect.fire();
+        
+        // 약간의 딜레이 후 추가 폭발
+        setTimeout(() => {
+            if (window.launchEffect && window.launchEffect.fire) {
+                window.launchEffect.fire();
+            }
+        }, 200);
     }
     
     // 동시에 메시지 공 추가 (발사 지점에서 튀어나옴)
